@@ -32,12 +32,16 @@ _MAX_PRODUCTS = 400
 
 def parse_offer_links(html: str) -> list[str]:
     root = parse(html)
-    links = []
-    for anchor in root.select("li.AHeroStageItems__Item > a"):
-        href = anchor.get("href")
-        if href and any(word in href for word in _ACCEPT):
-            links.append(urljoin(BASE, href))
-    return list(dict.fromkeys(links))
+    # The front page's hero block first; if it has changed, any offer link.
+    for selector in ("li.AHeroStageItems__Item > a", "a"):
+        links = []
+        for anchor in root.select(selector):
+            href = anchor.get("href")
+            if href and "/c/" in href and any(word in href for word in _ACCEPT):
+                links.append(urljoin(BASE, href.split("#")[0]))
+        if links:
+            return list(dict.fromkeys(links))
+    return []
 
 
 def parse_product_tiles(html: str) -> tuple[str, list[tuple[str, str | None]]]:

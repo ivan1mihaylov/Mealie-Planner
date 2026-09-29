@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 from datetime import date, timedelta
 import logging
+import os
 from random import randrange
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.aiohttp_client import async_create_clientsession, async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -52,7 +53,7 @@ from .mealie import MealieClient, PlannerError
 from .offers import OfferBook, OfferIndex
 from .recipes import RecipeIndex
 from .sources import billa, brochures, kaufland, lidl
-from .sources.common import SourceError
+from .sources.common import MAX_HEADER, SourceError, describe_page, fetch_text
 from .text import iso
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,6 +77,7 @@ class PlannerService:
         self.hass = hass
         self.entry = entry
         self.session = async_get_clientsession(hass)
+        self.shop_session = _shop_session(hass)
         data = entry.data
         self.mealie = MealieClient(self.session, data[CONF_MEALIE_URL], data[CONF_MEALIE_TOKEN])
         self.ai: AIClient | None = None
@@ -154,9 +156,9 @@ class PlannerService:
         for chain in self.web_chains:
             try:
                 if chain == LIDL:
-                    found = await lidl.fetch(self.session, today, self.book.web_offers_by_url(LIDL))
+                    found = await lidl.fetch(self.shop_session, today, self.book.web_offers_by_url(LIDL))
                 else:
-                    found = await adapters[chain](self.session, today)
+                    found = await adapters[chain](self.shop_session, today)
             except (SourceError, KeyError) as exc:
                 _LOGGER.warning("%s offers could not be read: %s", CHAIN_NAMES.get(chain, chain), exc)
                 self.book.replace_web(chain, [], now, error=str(exc))
@@ -178,7 +180,7 @@ class PlannerService:
             for chain in self.brochure_chains:
                 url = self.options.get(f"{OPT_BROCHURE_URL_PREFIX}{chain}") or DEFAULT_BROCHURE_URLS[chain]
                 try:
-                    found_brochures = await brochures.find(self.session, chain, url, today)
+                    found_brochures = await brochures.find(self.shop_session, chain, url, today)
                 except SourceError as exc:
                     summary["brochures"][chain] = {"error": str(exc)}
                     continue
@@ -204,7 +206,7 @@ class PlannerService:
             raise PlannerError("За четене на брошури е нужен AI.", "ai_missing")
         max_pages = int(self.options.get(OPT_MAX_PAGES, DEFAULT_MAX_PAGES))
         try:
-            offers, tokens = await extraction.read_brochure(self.ai, self.session, brochure, max_pages)
+            offers, tokens = await extraction.read_brochure(self.ai, self.shop_session, brochure, max_pages)
         except (PlannerError, SourceError) as exc:
             _LOGGER.warning("Brochure %s could not be read: %s", brochure.get("title"), exc)
             self.book.add_brochure(brochure, [], when, error=str(exc))
@@ -232,7 +234,7 @@ class PlannerService:
             found = [{"id": brochures.brochure_id(chain, url), "chain": chain, "title": title or url.rsplit("/", 1)[-1], "valid_from": None, "valid_to": None, "pages": [url], "pdf": None}]
         else:
             try:
-                found = await brochures.find(self.session, chain, url, today)
+                found = await brochures.find(self.shop_session, chain, url, today)
             except SourceError as exc:
                 raise PlannerError(f"Страницата не се чете: {exc}", "not_found") from exc
         if not found:
@@ -253,27 +255,47 @@ class PlannerService:
         report: dict[str, Any] = {}
         for chain, fetch in ((KAUFLAND, kaufland.fetch), (LIDL, lidl.fetch), (BILLA, billa.fetch)):
             try:
-                found = await fetch(self.session, today)
-                report[f"{chain}:web"] = {
-                    "count": len(found),
-                    "with_dates": sum(1 for offer in found if offer.get("valid_to")),
-                    "samples": found[:3],
-                }
+                found = await fetch(self.shop_session, today)
+                dated = sum(1 for offer in found if offer.get("valid_to"))
+                report[f"{chain}:web"] = {"count": len(found), "with_dates": dated, "samples": found[:3]}
+                if not found or not dated:
+                    report[f"{chain}:web"]["page"] = await self._diagnose(chain)
             except SourceError as exc:
-                report[f"{chain}:web"] = {"error": str(exc)}
+                report[f"{chain}:web"] = {"error": str(exc), "page": await self._diagnose(chain)}
             url = self.options.get(f"{OPT_BROCHURE_URL_PREFIX}{chain}") or DEFAULT_BROCHURE_URLS[chain]
             try:
-                found_brochures = await brochures.find(self.session, chain, url, today)
+                found_brochures = await brochures.find(self.shop_session, chain, url, today)
                 report[f"{chain}:brochures"] = {
                     "url": url,
+                    "page": None if found_brochures else await self._diagnose(chain, url, f"{chain}-brochures"),
                     "count": len(found_brochures),
                     "samples": [
                         {**brochure, "pages": len(brochure.get("pages") or [])} for brochure in found_brochures[:3]
                     ],
                 }
             except SourceError as exc:
-                report[f"{chain}:brochures"] = {"url": url, "error": str(exc)}
+                report[f"{chain}:brochures"] = {"url": url, "error": str(exc), "page": await self._diagnose(chain, url, f"{chain}-brochures")}
         return report
+
+    async def _diagnose(self, chain: str, url: str | None = None, name: str | None = None) -> dict[str, Any]:
+        """Describe the page a failing source got, and keep a copy to send in."""
+        url = url or {KAUFLAND: kaufland.URL, LIDL: lidl.BASE, BILLA: billa.BASE}[chain]
+        try:
+            html = await fetch_text(self.shop_session, url)
+        except SourceError as exc:
+            return {"url": url, "error": str(exc)}
+        path = self.hass.config.path("mealie_planner_debug", f"{name or chain}.html")
+
+        def save() -> None:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as file:
+                file.write(html)
+
+        await self.hass.async_add_executor_job(save)
+        return {"url": url, "saved_to": path, **describe_page(html)}
+
+    async def async_close(self) -> None:
+        await self.shop_session.close()
 
     def offers_view(self) -> dict[str, Any]:
         today = self.today()
@@ -712,6 +734,16 @@ class PlannerService:
         if not query:
             ranked.sort(key=lambda item: (-item["needed"], -item["score"], item["name"] or ""))
         return ranked[:60]
+
+
+def _shop_session(hass: HomeAssistant):
+    """A session for the shops' sites, which send headers too long for the shared one."""
+    try:
+        return async_create_clientsession(
+            hass, auto_cleanup=False, max_line_size=MAX_HEADER, max_field_size=MAX_HEADER
+        )
+    except TypeError:  # an aiohttp without these settings
+        return async_create_clientsession(hass, auto_cleanup=False)
 
 
 def _effort(value: str | None) -> str | None:

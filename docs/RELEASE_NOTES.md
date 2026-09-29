@@ -1,3 +1,8 @@
 - **GPT-6 Luna by default.** New setups suggest `gpt-6-luna`, OpenAI's smallest GPT-6 model. It reads brochure pages for less than `gpt-4o-mini` did. Existing setups keep their model; to switch, open **Reconfigure** and enter `gpt-6-luna`.
 - **Reasoning effort option.** Choose how long a reasoning model thinks before answering. *Low* is the default and is enough to read prices.
 - **Works with current and older AI services alike.** The client learns from a service's refusals whether it wants `max_completion_tokens` or `max_tokens`, and whether it takes a temperature, a reasoning effort or a JSON schema. An answer cut off while the model was still thinking is asked again with a larger budget. Before this, current OpenAI reasoning models could be refused at setup.
+- **Lidl can be read again.** lidl.bg sends headers longer than Home Assistant's web client accepts by default, so every Lidl page failed. The shops' pages now use a session that allows them, and a browser's request headers.
+- **Kaufland's offers are found even if they move.** When the offer data is not where it used to be, every JSON block embedded in the page is searched for lists of offers.
+- **Billa's offers get their dates** from anywhere on the page when the date element is missing.
+- **Olive and sunflower oil are no longer butter** in the product categories.
+- **A better source check.** Errors say what went wrong. A source that fails, gives no dates or finds no brochures now shows what the page looked like and saves a copy in `/config/mealie_planner_debug/`, to send in if a shop has changed its site.

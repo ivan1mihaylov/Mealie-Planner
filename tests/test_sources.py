@@ -16,7 +16,7 @@ import support
 from support import check, done
 
 from mealie_planner.sources import billa, brochures, kaufland, lidl
-from mealie_planner.sources.common import SourceError
+from mealie_planner.sources.common import SourceError, describe_page
 from mealie_planner.sources.html import parse
 
 TODAY = date(2026, 10, 1)
@@ -86,11 +86,21 @@ check("kaufland: shop category kept", salmon["source_category"], "Месо и р
 chili = by_name["Люта чушка"]
 check("kaufland: own dates per offer", (chili["valid_from"], chili["valid_to"]), ("2026-10-01", "2026-10-03"))
 check("kaufland: unit price", (chili["unit_price"], chili["unit_base"]), (6.35, "kg"))
+# The same data moved out of "OfferTemplate" into other embedded JSON is still found.
+moved = f"""<script id="__NEXT_DATA__" type="application/json">{json.dumps({"props": {"pageProps": offer_data["props"]["offerData"]}}, ensure_ascii=False)}</script>"""
+check("kaufland: offers found in other embedded JSON", sorted(o["name"] for o in kaufland.parse_offers(moved, TODAY)), sorted(by_name))
+assigned = f"""<script>window.__STATE__ = {json.dumps({"page": {"blocks": [{"categoryName": "Месо и риба", "offers": [
+    {"title": "Скумрия", "subtitle": "цяла", "price": "3,99 €", "dateFrom": "2026-10-01", "dateTo": "2026-10-04"}]}]}}, ensure_ascii=False)};</script>"""
+found = kaufland.parse_offers(assigned, TODAY)
+check("kaufland: a plain price key and an assigned object", [(o["name"], o["price"], o["source_category"]) for o in found], [("Скумрия цяла", 3.99, "Месо и риба")])
 try:
     kaufland.parse_offers("<html></html>", TODAY)
     check("kaufland: page without data fails loudly", False, True)
 except SourceError:
     check("kaufland: page without data fails loudly", True, True)
+
+page = describe_page("<html><head><title> Access Denied </title></head><script>x</script></html>")
+check("page description names a block page", (page["title"], page["scripts"], page["markers"]["Access Denied"], page["markers"]["OfferTemplate"]), ("Access Denied", 1, True, False))
 
 # --- Lidl -----------------------------------------------------------------------
 home = """<ul><li class="AHeroStageItems__Item"><a href="/c/niska-tsena-visoko-kachestvo/a10023711">Ниска цена</a></li>
@@ -100,6 +110,9 @@ check("lidl: offer pages only", lidl.parse_offer_links(home), [
     "https://www.lidl.bg/c/niska-tsena-visoko-kachestvo/a10023711",
     "https://www.lidl.bg/c/lidl-plus/s10021179",
 ])
+check("lidl: offer links found without the hero block", lidl.parse_offer_links(
+    '<nav><a href="/c/lidl-plus/s10021179#top">Lidl Plus</a><a href="/c/kontakti/s1">Контакти</a></nav>'),
+    ["https://www.lidl.bg/c/lidl-plus/s10021179"])
 tiles = """<title>НИСКА цена, ВИСОКО качество</title>
 <div data-selector="PRODUCT" canonicalurl="/p/pileshko-file/p100" image="https://img/1.jpg"></div>
 <div data-selector="PRODUCT" canonicalurl="/p/domati/p200"></div>"""
@@ -138,6 +151,8 @@ check("billa: two prices are old and new", (beans["price"], beans["old_price"]),
 check("billa: page dates", (beans["valid_from"], beans["valid_to"]), ("2026-10-01", "2026-10-07"))
 check("billa: four prices, the euro pair", (found[1]["price"], found[1]["old_price"]), (3.99, 4.99))
 check("billa: legumes", beans["category"], "legumes")
+moved_dates = catalog.replace('<div class="dateSpan">Валидност: 01.10.2026 - 07.10.2026</div>', '<p>Промоции 01.10. – 07.10.2026 г.</p>')
+check("billa: dates found without the date element", {(o["valid_from"], o["valid_to"]) for o in billa.parse_offers(moved_dates, TODAY)}, {("2026-10-01", "2026-10-07")})
 
 # --- Brochures ------------------------------------------------------------------
 links = brochures.find_links(

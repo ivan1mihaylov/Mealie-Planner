@@ -180,7 +180,10 @@ is yours.
   brochure, and reads it the same way.
 - **Check the sources** on the Offers tab shows what each source finds right
   now, without keeping anything or spending AI. Use it when a shop changes its
-  website.
+  website. When a source fails, gives offers without dates or finds no
+  brochures, it also shows what the page looked like and saves a copy in
+  `/config/mealie_planner_debug/`. Send that file in an issue so the parser
+  can be fixed.
 
 ## Products and the shopping list
 

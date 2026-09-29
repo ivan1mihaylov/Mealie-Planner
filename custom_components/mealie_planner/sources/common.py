@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 from typing import Any
 
 from aiohttp import ClientError, ClientSession
@@ -17,8 +18,18 @@ HEADERS = {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/128.0 Safari/537.36"
     ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Language": "bg-BG,bg;q=0.9,en;q=0.6",
 }
+
+# Shop sites send cookie and security headers longer than aiohttp's default
+# 8 KB limit (lidl.bg does); their own session allows more.
+MAX_HEADER = 64 * 1024
+
+
+def _reason(exc: BaseException) -> str:
+    text = f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__
+    return text[:300]
 
 
 class SourceError(Exception):
@@ -36,7 +47,28 @@ async def fetch_text(session: ClientSession, url: str, *, limit: int = 12 * 1024
                     raise SourceError(f"{url}: the page is too large")
                 return body.decode(response.charset or "utf-8", errors="replace")
     except (TimeoutError, ClientError) as exc:
-        raise SourceError(f"{url}: {type(exc).__name__}") from exc
+        raise SourceError(f"{url}: {_reason(exc)}") from exc
+
+
+def describe_page(html: str) -> dict[str, Any]:
+    """What a fetched page looks like, to tell a changed page from a blocked one."""
+    lower = html.lower()
+    title = re.search(r"<title[^>]*>(.*?)</title>", html, re.S | re.I)
+    ranges = re.findall(r"\d{1,2}\.\d{1,2}\.(?:\d{2,4})?\s*(?:-|–|—|до)\s*\d{1,2}\.\d{1,2}\.(?:\d{2,4})?", html)
+    return {
+        "length": len(html),
+        "date_ranges": ranges[:3],
+        "title": " ".join(title.group(1).split())[:120] if title else None,
+        "scripts": lower.count("<script"),
+        "markers": {
+            marker: marker.lower() in lower
+            for marker in (
+                "OfferTemplate", "window.SSR", "__NEXT_DATA__", "application/ld+json",
+                "formattedPrice", "AHeroStageItems", "data-selector=\"PRODUCT\"",
+                "ods-price", "productSection", "captcha", "challenge", "Access Denied",
+            )
+        },
+    }
 
 
 async def fetch_bytes(session: ClientSession, url: str, *, limit: int = 40 * 1024 * 1024, timeout: int = 90) -> tuple[bytes, str]:
@@ -51,7 +83,7 @@ async def fetch_bytes(session: ClientSession, url: str, *, limit: int = 40 * 102
                     raise SourceError(f"{url}: the file is too large")
                 return body, response.content_type or ""
     except (TimeoutError, ClientError) as exc:
-        raise SourceError(f"{url}: {type(exc).__name__}") from exc
+        raise SourceError(f"{url}: {_reason(exc)}") from exc
 
 
 def offer_key(chain: str, *parts: Any) -> str:
