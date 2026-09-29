@@ -1,0 +1,160 @@
+"""Reading the shops' pages, from small pages shaped like the real ones.
+
+The shapes follow the live sites as a maintained scraper reads them
+(github.com/StefanBratanov/sofia-supermarkets-api). If a shop changes its
+page, run the source check in the panel and adjust the parser and these.
+
+    python3 tests/test_sources.py
+"""
+
+from __future__ import annotations
+
+from datetime import date
+import json
+
+import support
+from support import check, done
+
+from mealie_planner.sources import billa, brochures, kaufland, lidl
+from mealie_planner.sources.common import SourceError
+from mealie_planner.sources.html import parse
+
+TODAY = date(2026, 10, 1)
+
+# --- The HTML helper ------------------------------------------------------------
+root = parse('<div class="a b"><p class="x">one</p><section><p class="x">two</p></section></div><p class="x">three</p>')
+check("descendant", [n.text() for n in root.select("div p.x")], ["one", "two"])
+check("child", [n.text() for n in root.select("div > p.x")], ["one"])
+check("two classes", len(root.select("div.a.b")), 1)
+check("attribute", len(parse('<div data-selector="PRODUCT"></div><div></div>').select("div[data-selector=PRODUCT]")), 1)
+
+# --- Kaufland -------------------------------------------------------------------
+offer_data = {
+    "component": "OfferTemplate",
+    "props": {
+        "offerData": {
+            "cycles": [
+                {
+                    "categories": [
+                        {
+                            "displayName": "Плодове и зеленчуци",
+                            "offers": [
+                                {"title": "Брей! Зелен лук", "subtitle": "Клас: I", "unit": "1 връзка",
+                                 "formattedPrice": "0,51", "formattedOldPrice": "0,76",
+                                 "listImage": "https://kaufland.media.schwarz/is/image/schwarz/1",
+                                 "dateFrom": "2026-09-28", "dateTo": "2026-10-04"},
+                                {"title": "Люта чушка", "subtitle": "", "unit": "200г в опаковка",
+                                 "formattedPrice": "1,27", "formattedOldPrice": "1,84",
+                                 "dateFrom": "2026-10-01", "dateTo": "2026-10-03"},
+                                {"title": "Без цена"},
+                            ],
+                        },
+                        {
+                            "displayName": "Месо и риба",
+                            "offers": [
+                                {"title": "Сьомга филе", "subtitle": "охладена", "unit": "1 кг",
+                                 "formattedPrice": "14,99", "formattedOldPrice": "19,99",
+                                 "dateFrom": "2026-09-28", "dateTo": "2026-10-04"},
+                            ],
+                        },
+                        {
+                            "displayName": "Седмични предложения",
+                            "offers": [
+                                # The same offer shown in a second category counts once.
+                                {"title": "Сьомга филе", "subtitle": "охладена", "unit": "1 кг",
+                                 "formattedPrice": "14,99", "formattedOldPrice": "19,99",
+                                 "dateFrom": "2026-09-28", "dateTo": "2026-10-04"},
+                            ],
+                        },
+                    ]
+                }
+            ]
+        }
+    },
+}
+page = f"""<html><head><script>window.x = 1;</script>
+<script>var tpl = "OfferTemplate"; window.__data = {json.dumps(offer_data, ensure_ascii=False)};</script></head>
+<body><button>Покажи още</button></body></html>"""
+found = kaufland.parse_offers(page, TODAY)
+check("kaufland: every category, duplicates once, no price skipped", len(found), 3)
+by_name = {offer["name"]: offer for offer in found}
+salmon = by_name["Сьомга филе охладена"]
+check("kaufland: price and old price", (salmon["price"], salmon["old_price"]), (14.99, 19.99))
+check("kaufland: discount", salmon["discount_pct"], 25)
+check("kaufland: classified", (salmon["food"], salmon["category"]), ("сьомга", "fish"))
+check("kaufland: shop category kept", salmon["source_category"], "Месо и риба")
+chili = by_name["Люта чушка"]
+check("kaufland: own dates per offer", (chili["valid_from"], chili["valid_to"]), ("2026-10-01", "2026-10-03"))
+check("kaufland: unit price", (chili["unit_price"], chili["unit_base"]), (6.35, "kg"))
+try:
+    kaufland.parse_offers("<html></html>", TODAY)
+    check("kaufland: page without data fails loudly", False, True)
+except SourceError:
+    check("kaufland: page without data fails loudly", True, True)
+
+# --- Lidl -----------------------------------------------------------------------
+home = """<ul><li class="AHeroStageItems__Item"><a href="/c/niska-tsena-visoko-kachestvo/a10023711">Ниска цена</a></li>
+<li class="AHeroStageItems__Item"><a href="/c/lidl-plus/s10021179">Lidl Plus</a></li>
+<li class="AHeroStageItems__Item"><a href="/c/kontakti/s1">Контакти</a></li></ul>"""
+check("lidl: offer pages only", lidl.parse_offer_links(home), [
+    "https://www.lidl.bg/c/niska-tsena-visoko-kachestvo/a10023711",
+    "https://www.lidl.bg/c/lidl-plus/s10021179",
+])
+tiles = """<title>НИСКА цена, ВИСОКО качество</title>
+<div data-selector="PRODUCT" canonicalurl="/p/pileshko-file/p100" image="https://img/1.jpg"></div>
+<div data-selector="PRODUCT" canonicalurl="/p/domati/p200"></div>"""
+title, products = lidl.parse_product_tiles(tiles)
+check("lidl: page title is the category", title, "НИСКА цена, ВИСОКО качество")
+check("lidl: product tiles", products, [("https://www.lidl.bg/p/pileshko-file/p100", "https://img/1.jpg"), ("https://www.lidl.bg/p/domati/p200", None)])
+product = """<h1 class="heading__title">Пилешко филе</h1>
+<div class="ods-price__stroke-price">5,10 €</div><div class="ods-price__value">3,99 €</div>
+<div class="ods-price__footer">цена за кг</div><div class="ods-price__footer">1 кг</div>
+<h3 class="availability">В магазина от 02.10. до 04.10.</h3>"""
+offer = lidl.parse_product(product, TODAY, url="https://www.lidl.bg/p/pileshko-file/p100", image=None, category=title)
+check("lidl: product", (offer["name"], offer["price"], offer["old_price"], offer["quantity"]), ("Пилешко филе", 3.99, 5.1, "1 кг"))
+check("lidl: own dates", (offer["valid_from"], offer["valid_to"]), ("2026-10-02", "2026-10-04"))
+check("lidl: meat", offer["category"], "meat")
+check("lidl: page without a name is skipped", lidl.parse_product("<div></div>", TODAY, url="x", image=None, category=None), None)
+
+# --- Billa ----------------------------------------------------------------------
+front = """<div class="buttons">
+<div class="button"><a href="https://ssbbilla.site/catalog/sedmichna-broshura"><div class="buttonText">Седмична брошура</div></a></div>
+<div class="button"><a href="https://ssbbilla.site/catalog/billa-card"><div class="buttonText">Billa Card оферти</div></a></div>
+<div class="button"><a href="https://ssbbilla.site/filiali"><div class="buttonText">Филиали</div></a></div></div>"""
+check("billa: categories, not card offers or shops", billa.parse_category_links(front), ["https://ssbbilla.site/catalog/sedmichna-broshura"])
+catalog = """<title>Седмична брошура</title><div class="dateSpan">Валидност: 01.10.2026 - 07.10.2026</div>
+<div class="productSection">
+ <div class="product"><div class="actualProduct">Супер цена! Боб зрял 1 кг</div><span class="price">3.49</span><span class="price">2.49</span></div>
+ <div class="product"><div class="actualProduct">Сирене краве 400 г</div>
+   <span class="price">9.76</span><span class="price">4.99</span><span class="price">7.80</span><span class="price">3.99</span></div>
+ <div class="product"><div class="actualProduct">Кафе с BILLA Card</div><span class="price">5.00</span><span class="price">3.00</span></div>
+ <div class="product"><div class="actualProduct">Без цена</div><span class="price">-</span></div>
+</div>"""
+found = billa.parse_offers(catalog, TODAY)
+check("billa: card-only and priceless left out", len(found), 2)
+beans = found[0]
+check("billa: noise removed, size split", (beans["name"], beans["quantity"]), ("Боб зрял", "1 кг"))
+check("billa: two prices are old and new", (beans["price"], beans["old_price"]), (2.49, 3.49))
+check("billa: page dates", (beans["valid_from"], beans["valid_to"]), ("2026-10-01", "2026-10-07"))
+check("billa: four prices, the euro pair", (found[1]["price"], found[1]["old_price"]), (3.99, 4.99))
+check("billa: legumes", beans["category"], "legumes")
+
+# --- Brochures ------------------------------------------------------------------
+links = brochures.find_links(
+    """<a href="/l/bg/broshura/ot-29-09-do-05-10/view/flyer/page/1">Брошура</a>
+    <a href="https://view.publitas.com/billa-bulgaria/broshura-01-10/">Billa</a>
+    <a href="https://example.com/files/weekly.pdf">PDF</a>""",
+    "https://www.lidl.bg/c/broshura/s10020060",
+)
+check("brochure: leaflet id", links["schwarz"], ["ot-29-09-do-05-10"])
+check("brochure: publitas", links["publitas"], ["https://view.publitas.com/billa-bulgaria/broshura-01-10"])
+check("brochure: pdf", links["pdf"], ["https://example.com/files/weekly.pdf"])
+flyer = {"flyer": {"title": "Брошура", "offerStartDate": "2026-09-29", "offerEndDate": "2026-10-05",
+                   "pdfUrl": "https://x/b.pdf", "pages": [{"image": "https://x/1.jpg", "zoom": "https://x/1z.jpg"}, {"image": "https://x/2.jpg"}]}}
+brochure = brochures.parse_schwarz("lidl", "ot-29-09-do-05-10", flyer, TODAY)
+check("brochure: pages, largest first", brochure["pages"], ["https://x/1z.jpg", "https://x/2.jpg"])
+check("brochure: dates", (brochure["valid_from"], brochure["valid_to"]), ("2026-09-29", "2026-10-05"))
+check("brochure: same id every time", brochure["id"], brochures.parse_schwarz("lidl", "ot-29-09-do-05-10", flyer, TODAY)["id"])
+check("brochure: dates from the title", brochures.pdf_brochure("billa", "https://x/broshura-01.10-07.10.2026.pdf", TODAY)["valid_to"], "2026-10-07")
+
+done()
