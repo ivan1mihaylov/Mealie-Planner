@@ -182,5 +182,32 @@ async def main():
     check("and the guess Lists made is cleared", runtime.updates, [("u1", {"store": None})])
 
 
+async def without_homebasket():
+    """Planning, products and offers work with neither HomeBasket nor its lists."""
+    hass = types.SimpleNamespace(data={})
+    entry = types.SimpleNamespace(data={"mealie_url": "http://mealie:9000", "mealie_token": "t"}, options={})
+    service = PlannerService(hass, entry)
+
+    async def group():
+        return "home"
+
+    service.mealie.group = group
+    service.recipes.recipes = {r["id"]: r for r in (salmon, salad)}
+    service.book = OfferBook({"offers": {o["id"]: o for o in OFFERS}})
+    week = date(2026, 10, 5)
+    view = await service.async_update_slot(week, "2026-10-05|dinner", set_recipe=True, recipe_id="s", locked=None)
+    basket = {i["name"]: i for i in view["basket"]}
+    check("alone: no lists offered", view["lists"], {"available": False, "lists": []})
+    check("alone: products still by shop", basket["сьомга"]["shop"], "kaufland")
+    check("alone: no shop from lists", basket["лимони"]["home_zone"], None)
+    check("alone: offers still listed", len(service.offers_view()["offers"]) > 0, True)
+    try:
+        await service.async_add_to_list([basket["сьомга"]])
+        check("alone: adding says why it cannot", False, True)
+    except Exception as exc:  # noqa: BLE001
+        check("alone: adding says why it cannot", getattr(exc, "code", None), "no_lists")
+
+
 asyncio.run(main())
+asyncio.run(without_homebasket())
 done()

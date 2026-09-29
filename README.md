@@ -35,12 +35,15 @@ Mealie's meal planner only when you press **Save to Mealie**.
 
 ## The parts
 
-| | What it is |
-| --- | --- |
-| **Mealie Planner** | This: rules, offers, the week's plan and its products. |
-| **[Mealie Discover](https://github.com/ivan1mihaylov/Mealie-Discover)** | Finds recipes on the web and adds them to Mealie. |
-| **[HomeBasket Lists](https://github.com/ivan1mihaylov/HomeBasket-Lists)** | The shopping list the products go to, with a shop on each item. |
-| **[HomeBasket](https://github.com/ivan1mihaylov/HomeBasket)** | Scanning, and the products it learns. |
+Each part is installed separately; **Needs** says what it cannot work without. Mealie is the recipe manager, not one of these parts.
+
+| | What it is | Needs |
+| --- | --- | --- |
+| **[HomeBasket](https://github.com/ivan1mihaylov/HomeBasket)** | Scanning, and the products it learns: names, barcodes, pictures, everything the databases know. | Nothing else. Puts scans on a HomeBasket Lists list when that is installed, otherwise on a to-do list. |
+| **[HomeBasket Card](https://github.com/ivan1mihaylov/HomeBasket-Card)** | Scanning with a phone, for when there is no scanner on a shelf — and the place to look after the products themselves. | **HomeBasket** (required). |
+| **[HomeBasket Lists](https://github.com/ivan1mihaylov/HomeBasket-Lists)** | Shopping lists and tasks, using what HomeBasket knows. | Nothing else. HomeBasket is optional: with it, items get products and pictures, and a list can scan. |
+| **[Mealie Discover](https://github.com/ivan1mihaylov/Mealie-Discover)** | Finds recipes on the web and adds them to Mealie. | **Mealie** (required), and at least one of SearXNG, a YouTube key or Social to Mealie. |
+| **Mealie Planner** | This: plans the week in Mealie from your rules and the Lidl, Kaufland and Billa offers, and lists the week's products by shop. | **Mealie** (required). HomeBasket Lists is optional, for putting the products on a list; AI is optional. |
 
 Mealie Planner uses HomeBasket Lists through the public interface HomeBasket
 already uses (`hass.data["homebasket_lists_api"]`). HomeBasket Lists is
