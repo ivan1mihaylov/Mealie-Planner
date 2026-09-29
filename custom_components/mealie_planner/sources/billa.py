@@ -6,6 +6,7 @@ The front page links to one page per category; each lists its products in
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date
 import logging
 import re
@@ -67,6 +68,14 @@ def parse_category_links(html: str) -> list[str]:
         if anchor is not None and anchor.get("href"):
             links.append(urljoin(BASE + "/", anchor.get("href")))
     return list(dict.fromkeys(links))
+
+
+def is_front_page(html: str) -> bool:
+    return bool(parse_category_links(html))
+
+
+def is_offer_page(html: str) -> bool:
+    return "productSection" in html
 
 
 def clean_name(name: str) -> tuple[str, str | None]:
@@ -154,14 +163,34 @@ def parse_offers(html: str, today: date, *, url: str = BASE) -> list[dict[str, A
 
 
 async def fetch(session: ClientSession, today: date) -> list[dict[str, Any]]:
-    links = parse_category_links(await fetch_text(session, BASE))
+    links = parse_category_links(await fetch_text(session, BASE, expect=is_front_page))
     if not links:
         raise SourceError("Billa: no category pages on ssbbilla.site")
     offers: dict[str, dict[str, Any]] = {}
     for link in links:
         try:
-            for offer in parse_offers(await fetch_text(session, link), today, url=link):
+            for offer in parse_offers(await fetch_text(session, link, expect=is_offer_page), today, url=link):
                 offers.setdefault(offer["id"], offer)
         except SourceError as exc:
             _LOGGER.debug("Billa page skipped: %s", exc)
-    return list(offers.values())
+    return fill_dates(list(offers.values()))
+
+
+def fill_dates(offers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Give offers from pages without dates the week the other pages show.
+
+    The weekly brochure page carries no date, while the category pages of the
+    same week do; the dates most of them share are that week's.
+    """
+    weeks = Counter(
+        (offer["valid_from"], offer["valid_to"])
+        for offer in offers
+        if offer.get("valid_from") and offer.get("valid_to")
+    )
+    if not weeks:
+        return offers
+    (start, end), _ = weeks.most_common(1)[0]
+    for offer in offers:
+        if not offer.get("valid_from") and not offer.get("valid_to"):
+            offer["valid_from"], offer["valid_to"] = start, end
+    return offers

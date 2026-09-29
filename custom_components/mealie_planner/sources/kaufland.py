@@ -100,6 +100,11 @@ def _template_data(root) -> dict[str, Any] | None:
     return None
 
 
+def is_full_page(html: str) -> bool:
+    """The page with its offer data, not the light one some clients get."""
+    return "formattedPrice" in html or "window.SSR" in html
+
+
 def _text(value: Any) -> str | None:
     return value.strip() if isinstance(value, str) and value.strip() else None
 
@@ -142,4 +147,4 @@ def parse_offers(html: str, today: date | None = None) -> list[dict[str, Any]]:
 
 
 async def fetch(session: ClientSession, today: date) -> list[dict[str, Any]]:
-    return parse_offers(await fetch_text(session, URL), today)
+    return parse_offers(await fetch_text(session, URL, expect=is_full_page), today)

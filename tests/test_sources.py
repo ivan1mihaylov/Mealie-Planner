@@ -75,6 +75,7 @@ offer_data = {
 page = f"""<html><head><script>window.x = 1;</script>
 <script>var tpl = "OfferTemplate"; window.__data = {json.dumps(offer_data, ensure_ascii=False)};</script></head>
 <body><button>Покажи още</button></body></html>"""
+KAUFLAND_PAGE = page
 found = kaufland.parse_offers(page, TODAY)
 check("kaufland: every category, duplicates once, no price skipped", len(found), 3)
 by_name = {offer["name"]: offer for offer in found}
@@ -153,6 +154,91 @@ check("billa: four prices, the euro pair", (found[1]["price"], found[1]["old_pri
 check("billa: legumes", beans["category"], "legumes")
 moved_dates = catalog.replace('<div class="dateSpan">Валидност: 01.10.2026 - 07.10.2026</div>', '<p>Промоции 01.10. – 07.10.2026 г.</p>')
 check("billa: dates found without the date element", {(o["valid_from"], o["valid_to"]) for o in billa.parse_offers(moved_dates, TODAY)}, {("2026-10-01", "2026-10-07")})
+
+# Billa's weekly brochure page has no dates; its offers take the week the others show.
+undated = [{"valid_from": None, "valid_to": None}, {"valid_from": "2026-10-01", "valid_to": "2026-10-07"},
+           {"valid_from": "2026-10-01", "valid_to": "2026-10-07"}, {"valid_from": "2026-10-03", "valid_to": "2026-10-04"}]
+check("billa: undated offers take the common week", billa.fill_dates(undated)[0], {"valid_from": "2026-10-01", "valid_to": "2026-10-07"})
+check("billa: dated offers keep their own", billa.fill_dates(undated)[3]["valid_to"], "2026-10-04")
+check("billa: nothing to take from, nothing changes", billa.fill_dates([{"valid_from": None, "valid_to": None}]), [{"valid_from": None, "valid_to": None}])
+
+# --- Asking for the whole page -----------------------------------------------------
+from mealie_planner.sources import common
+
+
+class _Content:
+    def __init__(self, body):
+        self._body = body
+
+    async def read(self, n):
+        return self._body[:n]
+
+
+class _Response:
+    def __init__(self, text, status=200):
+        self.status = status
+        self.charset = "utf-8"
+        self.content = _Content(text.encode())
+        self.content_type = "text/html"
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return False
+
+
+class Site:
+    """Serves the whole page only to one way of asking, and a light page to the rest."""
+
+    def __init__(self, full, light, serves_full):
+        self.full, self.light, self.serves_full = full, light, serves_full
+        self.asked = []
+
+    def get(self, url, headers=None):
+        agent = (headers or {}).get("User-Agent", "")
+        profile = "browser" if "Chrome" in agent else "app" if "MealiePlanner" in agent else "plain"
+        self.asked.append(profile)
+        return _Response(self.full if profile == self.serves_full else self.light)
+
+
+LIGHT = "<html><title>Всички оферти | Kaufland</title><link href='OfferTemplate-vue.css'></html>"
+
+
+async def profiles():
+    common.PREFERRED.clear()
+    site = Site(KAUFLAND_PAGE, LIGHT, "plain")
+    found = await kaufland.fetch(site, TODAY)
+    check("profiles: the plain client gets the whole page first", (len(found), site.asked), (3, ["plain"]))
+
+    common.PREFERRED.clear()
+    site = Site(KAUFLAND_PAGE, LIGHT, "browser")
+    found = await kaufland.fetch(site, TODAY)
+    check("profiles: tried in turn until the page has the data", (len(found), site.asked), (3, ["plain", "app", "browser"]))
+    check("profiles: what worked is remembered", common.PREFERRED["www.kaufland.bg"], "browser")
+    site.asked.clear()
+    await kaufland.fetch(site, TODAY)
+    check("profiles: and asked first next time", site.asked, ["browser"])
+
+    common.PREFERRED.clear()
+    site = Site(KAUFLAND_PAGE, LIGHT, "nobody")
+    try:
+        await kaufland.fetch(site, TODAY)
+        check("profiles: with none working, the parser still reports", False, True)
+    except SourceError as exc:
+        check("profiles: with none working, the parser still reports", ("no offer data" in str(exc), len(site.asked)), (True, 3))
+
+    each = await common.fetch_each_profile(Site(KAUFLAND_PAGE, LIGHT, "app"), kaufland.URL)
+    check("profiles: the source check asks every way", [(name, kaufland.is_full_page(html)) for name, html, _ in each],
+          [("plain", False), ("app", True), ("browser", False)])
+    common.PREFERRED.clear()
+
+
+import asyncio  # noqa: E402
+
+asyncio.run(profiles())
+check("kaufland: the light page is not the whole page", kaufland.is_full_page(LIGHT), False)
+check("billa: an offer page is recognised", (billa.is_offer_page(catalog), billa.is_offer_page("<html></html>")), (True, False))
 
 # --- Brochures ------------------------------------------------------------------
 links = brochures.find_links(

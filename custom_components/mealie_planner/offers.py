@@ -22,9 +22,11 @@ class OfferBook:
         self.offers: dict[str, dict[str, Any]] = dict(data.get("offers") or {})
         self.sources: dict[str, dict[str, Any]] = dict(data.get("sources") or {})
         self.usage: dict[str, int] = {"prompt": 0, "completion": 0, **(data.get("usage") or {})}
+        # Which way of asking got each shop site's whole page, by host.
+        self.profiles: dict[str, str] = dict(data.get("profiles") or {})
 
     def as_dict(self) -> dict[str, Any]:
-        return {"offers": self.offers, "sources": self.sources, "usage": self.usage}
+        return {"offers": self.offers, "sources": self.sources, "usage": self.usage, "profiles": self.profiles}
 
     def add_usage(self, tokens: dict[str, int]) -> None:
         for key in ("prompt", "completion"):
