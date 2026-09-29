@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Свързване на Mealie Planner",
+        "description": "Въведете адреса на Mealie, достъпен от Home Assistant, и API токен от Mealie (Mealie → профил → API Tokens). Открита добавка Mealie: {detected}.\n\nAI е по избор. Той чете хартиените брошури на магазините (веднъж на брошура) и може да състави седмицата. Използвайте същите настройки като в Mealie: ключ за OpenAI или адрес на OpenRouter, Ollama или друга съвместима с OpenAI услуга. Без AI седмицата се съставя локално, а промоциите идват само от сайтовете на магазините.",
+        "data": {
+          "mealie_url": "Адрес на Mealie",
+          "mealie_token": "API токен на Mealie",
+          "ai_base_url": "Адрес на AI, съвместим с OpenAI (по избор)",
+          "ai_api_key": "API ключ за AI (по избор)",
+          "ai_model": "AI модел (трябва да чете изображения)"
+        }
+      },
+      "reconfigure": {
+        "title": "Промяна на Mealie Planner",
+        "description": "Въведете адреса на Mealie, достъпен от Home Assistant, и API токен от Mealie (Mealie → профил → API Tokens). Открита добавка Mealie: {detected}.\n\nAI е по избор. Той чете хартиените брошури на магазините (веднъж на брошура) и може да състави седмицата. Използвайте същите настройки като в Mealie: ключ за OpenAI или адрес на OpenRouter, Ollama или друга съвместима с OpenAI услуга. Без AI седмицата се съставя локално, а промоциите идват само от сайтовете на магазините.",
+        "data": {
+          "mealie_url": "Адрес на Mealie",
+          "mealie_token": "API токен на Mealie",
+          "ai_base_url": "Адрес на AI, съвместим с OpenAI (по избор)",
+          "ai_api_key": "API ключ за AI (по избор)",
+          "ai_model": "AI модел (трябва да чете изображения)"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Въведете HTTP или HTTPS адрес без потребител, парола и параметри",
+      "cannot_connect": "Mealie не се достига от Home Assistant или адресът не е на API-то на Mealie",
+      "invalid_auth": "Mealie отказа API токена",
+      "ai_auth": "AI услугата отказа ключа",
+      "ai_failed": "AI услугата не отговори с този адрес и модел"
+    },
+    "abort": {
+      "already_configured": "Mealie Planner вече е настроен",
+      "single_instance_allowed": "Mealie Planner вече е настроен",
+      "reconfigure_successful": "Настройките са обновени"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Настройки на Mealie Planner",
+        "description": "Правилата (риба, бобови, супа…) и храненията за всеки ден се задават в панела на Mealie Planner. Тук: как се съставя седмицата, откъде идват промоциите, коя зона кой магазин е и в кой списък на HomeBasket Lists отиват продуктите.",
+        "data": {
+          "planner_mode": "Съставяне на седмицата",
+          "web_chains": "Промоции от сайтовете на тези магазини (безплатно)",
+          "brochure_chains": "Брошури на тези магазини, прочетени с AI (веднъж на брошура)",
+          "zone_lidl": "Зона на Lidl",
+          "zone_kaufland": "Зона на Kaufland",
+          "zone_billa": "Зона на Billa",
+          "list_entry": "Списък в HomeBasket Lists",
+          "week_start": "Седмицата започва в",
+          "max_pages": "Най-много страници от брошура за AI",
+          "brochure_url_lidl": "Страница с брошурата на Lidl",
+          "brochure_url_kaufland": "Страница с брошурата на Kaufland",
+          "brochure_url_billa": "Страница с брошурата на Billa"
+        }
+      }
+    }
+  },
+  "selector": {
+    "planner_mode": {
+      "options": {
+        "local": "Локално, по правилата и промоциите",
+        "ai": "С AI, проверено спрямо правилата"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "понеделник",
+        "1": "вторник",
+        "2": "сряда",
+        "3": "четвъртък",
+        "4": "петък",
+        "5": "събота",
+        "6": "неделя"
+      }
+    }
+  }
+}

@@ -1,0 +1,81 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Mealie Planner",
+        "description": "Enter the Mealie URL reachable from Home Assistant and a Mealie API token (Mealie → your profile → API Tokens). Found Mealie add-on: {detected}.\n\nAI is optional. It reads the shops' printed brochures (once per brochure) and can plan the week. Use the same kind of settings Mealie uses: an OpenAI key, or the address of OpenRouter, Ollama or another OpenAI-compatible service. Without AI the week is planned locally and offers come from the shops' websites only.",
+        "data": {
+          "mealie_url": "Mealie URL",
+          "mealie_token": "Mealie API token",
+          "ai_base_url": "AI base URL, OpenAI-compatible (optional)",
+          "ai_api_key": "AI API key (optional)",
+          "ai_model": "AI model (must read images)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Mealie Planner",
+        "description": "Enter the Mealie URL reachable from Home Assistant and a Mealie API token (Mealie → your profile → API Tokens). Found Mealie add-on: {detected}.\n\nAI is optional. It reads the shops' printed brochures (once per brochure) and can plan the week. Use the same kind of settings Mealie uses: an OpenAI key, or the address of OpenRouter, Ollama or another OpenAI-compatible service. Without AI the week is planned locally and offers come from the shops' websites only.",
+        "data": {
+          "mealie_url": "Mealie URL",
+          "mealie_token": "Mealie API token",
+          "ai_base_url": "AI base URL, OpenAI-compatible (optional)",
+          "ai_api_key": "AI API key (optional)",
+          "ai_model": "AI model (must read images)"
+        }
+      }
+    },
+    "error": {
+      "invalid_url": "Enter an HTTP or HTTPS URL without credentials or query parameters",
+      "cannot_connect": "Cannot reach Mealie from Home Assistant, or the URL is not Mealie's API address",
+      "invalid_auth": "Mealie rejected the API token",
+      "ai_auth": "The AI service rejected the key",
+      "ai_failed": "The AI service did not answer with this URL and model"
+    },
+    "abort": {
+      "already_configured": "Mealie Planner is already configured",
+      "single_instance_allowed": "Mealie Planner is already configured",
+      "reconfigure_successful": "Settings updated"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Mealie Planner options",
+        "description": "Rules (fish, legumes, soup…) and the meals of each day are set in the Mealie Planner panel. Here: how the week is planned, where offers come from, which zone is which shop, and the HomeBasket Lists list products go to.",
+        "data": {
+          "planner_mode": "Plan the week",
+          "web_chains": "Read offers from these shops' websites (free)",
+          "brochure_chains": "Read these shops' printed brochures with AI (once per brochure)",
+          "zone_lidl": "Zone of Lidl",
+          "zone_kaufland": "Zone of Kaufland",
+          "zone_billa": "Zone of Billa",
+          "list_entry": "HomeBasket Lists list",
+          "week_start": "The week starts on",
+          "max_pages": "Most brochure pages read by AI",
+          "brochure_url_lidl": "Brochure page of Lidl",
+          "brochure_url_kaufland": "Brochure page of Kaufland",
+          "brochure_url_billa": "Brochure page of Billa"
+        }
+      }
+    }
+  },
+  "selector": {
+    "planner_mode": {
+      "options": {
+        "local": "Locally, by the rules and the offers",
+        "ai": "With AI, checked against the rules"
+      }
+    },
+    "weekday": {
+      "options": {
+        "0": "Monday",
+        "1": "Tuesday",
+        "2": "Wednesday",
+        "3": "Thursday",
+        "4": "Friday",
+        "5": "Saturday",
+        "6": "Sunday"
+      }
+    }
+  }
+}
