@@ -259,6 +259,56 @@ asyncio.run(profiles())
 check("kaufland: the light page is not the whole page", kaufland.is_full_page(LIGHT), False)
 check("billa: an offer page is recognised", (billa.is_offer_page(catalog), billa.is_offer_page("<html></html>")), (True, False))
 
+# --- Lidl: dates from the page or its link, when the product has none ---------------
+class Pages:
+    """A site of several pages, each read whole."""
+
+    def __init__(self, pages):
+        self.pages = pages
+
+    def get(self, url, headers=None):
+        return _Response(self.pages.get(url, "<html></html>"))
+
+
+LIDL_FRONT = """<html><a href="/c/sedmichni-predlozheniya/a100">Седмични предложения 28.09. - 04.10.</a>
+<a href="/c/lidl-plus/s10021179">Lidl Plus</a><a href="/c/kontakti/s1">Контакти</a></html>"""
+LIDL_WEEK = """<title>Седмични предложения</title><div data-selector="PRODUCT" canonicalurl="/p/krusi/p1"></div>"""
+LIDL_PLUS = """<title>Lidl Plus</title><p>Валидно 29.09. - 01.10.</p><div data-selector="PRODUCT" canonicalurl="/p/krenvirsi/p2"></div>"""
+PEARS = """<h1 class="heading__title">Круши</h1><div class="ods-price__value">1,89 €</div><div class="ods-price__footer">за kg</div>"""
+SAUSAGES = """<h1 class="heading__title">Кренвирши</h1><div class="ods-price__value">1,15 €</div>"""
+
+check("lidl: offer pages found by the dates in their links", lidl.parse_offer_pages(LIDL_FRONT, TODAY), {
+    "https://www.lidl.bg/c/sedmichni-predlozheniya/a100": [date(2026, 9, 28), date(2026, 10, 4)],
+    "https://www.lidl.bg/c/lidl-plus/s10021179": [],
+})
+
+
+async def lidl_dates():
+    common.PREFERRED.clear()
+    site = Pages({
+        "https://www.lidl.bg": LIDL_FRONT,
+        "https://www.lidl.bg/c/sedmichni-predlozheniya/a100": LIDL_WEEK,
+        "https://www.lidl.bg/c/lidl-plus/s10021179": LIDL_PLUS,
+        "https://www.lidl.bg/p/krusi/p1": PEARS,
+        "https://www.lidl.bg/p/krenvirsi/p2": SAUSAGES,
+    })
+    found = {o["name"]: o for o in await lidl.fetch(site, TODAY)}
+    check("lidl: a product takes its link's dates", (found["Круши"]["valid_from"], found["Круши"]["valid_to"]), ("2026-09-28", "2026-10-04"))
+    check("lidl: or its own page's", (found["Кренвирши"]["valid_from"], found["Кренвирши"]["valid_to"]), ("2026-09-29", "2026-10-01"))
+    check("lidl: loose fruit has a price per kg", (found["Круши"]["unit_price"], found["Круши"]["unit_base"]), (1.89, "kg"))
+    known = {"https://www.lidl.bg/p/krusi/p1": {**found["Круши"], "valid_from": None, "valid_to": None}}
+    again = {o["name"]: o for o in await lidl.fetch(site, TODAY, known)}
+    check("lidl: a product known without dates gets them too", again["Круши"]["valid_to"], "2026-10-04")
+    common.PREFERRED.clear()
+
+
+asyncio.run(lidl_dates())
+
+check("brochure: viewers inside frames are looked into", brochures.embedded_pages(
+    '<iframe src="https://viewer.example/billa/week"></iframe><iframe src="https://www.google.com/recaptcha/x"></iframe>'
+    '<iframe data-src="/embed/brochure"></iframe>', "https://www.billa.bg/promocii"),
+    ["https://viewer.example/billa/week", "https://www.billa.bg/embed/brochure"])
+
 # --- Brochures ------------------------------------------------------------------
 links = brochures.find_links(
     """<a href="/l/bg/broshura/ot-29-09-do-05-10/view/flyer/page/1">Брошура</a>

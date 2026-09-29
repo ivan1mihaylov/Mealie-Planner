@@ -1,2 +1,5 @@
-- **Kaufland and Lidl offers are read.** Shop pages were read only as far as the first pieces that had arrived: 14 KB of Lidl's pages and at most 60 KB of Kaufland's, which is over 2 MB. The offers and brochure links come later, so they were never seen; Billa's small pages arrived in one piece and worked. Pages are now read to the end.
-- **Brochure images and PDFs arrive whole** for AI to read. They had the same problem.
+- **Lidl offers have dates.** Lidl's product pages no longer say when an offer runs. A product now takes the dates of the offer page it is on, else of that page's link on the front page ("28.09. - 04.10."), so Lidl offers count for the right week in planning.
+- **More Lidl offers.** Offer pages are also recognised by the date range in their link, not only by a few known page names.
+- **Prices per kg for loose produce.** "за kg" counts as one kilogram, so loose fruit and vegetables get a price per kg to compare.
+- **Flowers and plants are not vegetables.** Bouquets, roses and orchids in Kaufland's fruit and vegetables section are filed as non-food and stay out of planning. Figs are fruit.
+- **Brochures inside embedded viewers.** When a brochure page shows its brochure in a frame, the frame is looked into for the leaflet, Publitas or PDF link.

@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 from aiohttp import ClientSession
 
 from ..const import LIDL
-from ..text import parse_dates
+from ..text import first_range, parse_dates
 from .common import SourceError, fetch_text, make_offer
 from .html import parse
 
@@ -30,18 +30,31 @@ _PARALLEL = 4
 _MAX_PRODUCTS = 400
 
 
-def parse_offer_links(html: str) -> list[str]:
+def parse_offer_pages(html: str, today: date) -> dict[str, list[date]]:
+    """Offer pages linked from the front page, each with the dates its link shows.
+
+    An offer page is a category link ("/c/") with a known offer word in it, or
+    with a date range in its text ("28.09. - 04.10."), as the weekly ones have.
+    """
     root = parse(html)
-    # The front page's hero block first; if it has changed, any offer link.
+    pages: dict[str, list[date]] = {}
     for selector in ("li.AHeroStageItems__Item > a", "a"):
-        links = []
         for anchor in root.select(selector):
             href = anchor.get("href")
-            if href and "/c/" in href and any(word in href for word in _ACCEPT):
-                links.append(urljoin(BASE, href.split("#")[0]))
-        if links:
-            return list(dict.fromkeys(links))
-    return []
+            if not href or "/c/" not in href:
+                continue
+            dates = first_range(anchor.text(), today)
+            if dates or any(word in href for word in _ACCEPT):
+                url = urljoin(BASE, href.split("#")[0])
+                if url not in pages or (dates and not pages[url]):
+                    pages[url] = dates
+        if pages:
+            return pages
+    return pages
+
+
+def parse_offer_links(html: str, today: date | None = None) -> list[str]:
+    return list(parse_offer_pages(html, today or date.today()))
 
 
 def parse_product_tiles(html: str) -> tuple[str, list[tuple[str, str | None]]]:
@@ -54,6 +67,18 @@ def parse_product_tiles(html: str) -> tuple[str, list[tuple[str, str | None]]]:
         if url:
             tiles.append((urljoin(BASE, url), tile.get("image") or None))
     return (title.text() if title else ""), list(dict.fromkeys(tiles))
+
+
+def page_dates(html: str, today: date) -> list[date]:
+    """The week an offer page is for, from the first date range it shows."""
+    return first_range(parse(html).text(), today)
+
+
+def with_dates(offer: dict[str, Any], dates: list[date]) -> dict[str, Any]:
+    """An offer without dates of its own takes its page's."""
+    if offer.get("valid_from") or offer.get("valid_to") or len(dates) < 2:
+        return offer
+    return {**offer, "valid_from": dates[0].isoformat(), "valid_to": dates[1].isoformat()}
 
 
 def parse_product(html: str, today: date, *, url: str, image: str | None, category: str | None) -> dict[str, Any] | None:
@@ -87,36 +112,47 @@ def parse_product(html: str, today: date, *, url: str, image: str | None, catego
 
 
 async def fetch(session: ClientSession, today: date, known: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
-    """All offers; product pages already known (by URL) are not fetched again."""
+    """All offers; product pages already known (by URL) are not fetched again.
+
+    Product pages no longer say when an offer runs. A product takes the dates
+    of the offer page it is on, else of that page's link on the front page,
+    else the first range the front page shows.
+    """
     known = known or {}
-    pages = parse_offer_links(await fetch_text(session, BASE, expect=lambda html: bool(parse_offer_links(html))))
+    front = await fetch_text(session, BASE, expect=lambda html: bool(parse_offer_pages(html, today)))
+    pages = parse_offer_pages(front, today)
     if not pages:
         raise SourceError("Lidl: no offer pages linked from the front page")
-    products: list[tuple[str, str | None, str]] = []
-    for page in pages:
+    front_dates = first_range(parse(front).text(), today)
+    products: dict[str, tuple[str | None, str, list[date]]] = {}
+    for page, link_dates in pages.items():
         try:
-            title, tiles = parse_product_tiles(await fetch_text(session, page, expect=lambda html: "PRODUCT" in html))
+            html = await fetch_text(session, page, expect=lambda html: "PRODUCT" in html)
         except SourceError as exc:
             _LOGGER.debug("Lidl page skipped: %s", exc)
             continue
-        products.extend((url, image, title) for url, image in tiles)
-    products = list({url: (url, image, title) for url, image, title in products}.values())[:_MAX_PRODUCTS]
+        title, tiles = parse_product_tiles(html)
+        dates = page_dates(html, today) or link_dates or front_dates
+        for url, image in tiles:
+            products.setdefault(url, (image, title, dates))
+    chosen = list(products.items())[:_MAX_PRODUCTS]
 
     semaphore = asyncio.Semaphore(_PARALLEL)
     results: list[dict[str, Any]] = []
 
-    async def one(url: str, image: str | None, title: str) -> None:
+    async def one(url: str, image: str | None, title: str, dates: list[date]) -> None:
         if url in known:
-            results.append(known[url])
+            results.append(with_dates(known[url], dates))
             return
         async with semaphore:
             try:
-                offer = parse_product(await fetch_text(session, url, expect=lambda html: "heading__title" in html), today, url=url, image=image, category=title)
+                html = await fetch_text(session, url, expect=lambda html: "heading__title" in html)
+                offer = parse_product(html, today, url=url, image=image, category=title)
             except SourceError as exc:
                 _LOGGER.debug("Lidl product skipped: %s", exc)
                 return
         if offer is not None:
-            results.append(offer)
+            results.append(with_dates(offer, dates))
 
-    await asyncio.gather(*(one(*product) for product in products))
+    await asyncio.gather(*(one(url, *details) for url, details in chosen))
     return results

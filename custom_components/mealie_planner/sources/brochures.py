@@ -60,6 +60,20 @@ def find_links(html: str, base: str) -> dict[str, list[str]]:
     }
 
 
+def embedded_pages(html: str, base: str) -> list[str]:
+    """Pages shown inside a page: iframes and embeds, where brochure viewers live."""
+    root = parse(html)
+    urls = []
+    for node in root.select("iframe") + root.select("embed") + root.select("object"):
+        src = node.get("src") or node.get("data-src") or node.get("data")
+        if src and not src.startswith(("about:", "javascript:", "data:")):
+            url = urljoin(base, src)
+            # Consent, analytics and chat frames never hold a brochure.
+            if not re.search(r"google|facebook|youtube|doubleclick|consent|cookie|recaptcha|hotjar|chat", url, re.I):
+                urls.append(url)
+    return list(dict.fromkeys(urls))
+
+
 def _walk(data: Any):
     if isinstance(data, dict):
         yield data
@@ -144,6 +158,16 @@ async def find(session: ClientSession, chain: str, page_url: str, today: date) -
     """The brochures linked from a chain's brochure page."""
     html = await fetch_text(session, page_url, expect=lambda page: any(find_links(page, page_url).values()))
     links = find_links(html, page_url)
+    if not any(links.values()):
+        # The brochure may sit in an embedded viewer: look inside its frames.
+        for frame in embedded_pages(html, page_url)[:3]:
+            try:
+                inner = find_links(await fetch_text(session, frame), frame)
+            except SourceError as exc:
+                _LOGGER.debug("Embedded page %s skipped: %s", frame, exc)
+                continue
+            for kind, found_links in inner.items():
+                links[kind] = list(dict.fromkeys(links[kind] + found_links))
     found: dict[str, dict[str, Any]] = {}
     for ident in links["schwarz"][:6]:
         try:

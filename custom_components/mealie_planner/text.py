@@ -139,6 +139,10 @@ def parse_quantity(text: str | None) -> tuple[float, str] | None:
         return None
     match = _QUANTITY.search(str(text))
     if match is None:
+        # "за kg", "цена за кг": a price per kilogram or litre.
+        per = re.search(r"(?:^|\bза\s*|/\s*)(1\s*)?(kg|кг|l|л)\b\.?", str(text), re.IGNORECASE)
+        if per:
+            return (1.0, "kg" if per.group(2).lower() in ("kg", "кг") else "l")
         return None
     count = int(match.group(1)) if match.group(1) else 1
     amount = float(match.group(2).replace(",", "."))
@@ -185,6 +189,20 @@ def parse_dates(text: str | None, today: date) -> list[date]:
         except ValueError:
             pass
     return found
+
+
+_RANGE = re.compile(
+    r"(\d{1,2}\.\d{1,2}\.(?:\d{2,4})?)\s*(?:г\.)?\s*(?:-|–|—|до)\s*(\d{1,2}\.\d{1,2}\.(?:\d{2,4})?)"
+)
+
+
+def first_range(text: str | None, today: date) -> list[date]:
+    """The first "28.09. - 04.10." style range in a text that is a real one."""
+    for match in _RANGE.finditer(str(text or "")):
+        dates = parse_dates(f"{match.group(1)} {match.group(2)}", today)
+        if len(dates) == 2 and 0 <= (dates[1] - dates[0]).days <= 62:
+            return dates
+    return []
 
 
 def iso(value: date | str | None) -> str | None:

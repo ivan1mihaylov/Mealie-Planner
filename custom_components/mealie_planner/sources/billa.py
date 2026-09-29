@@ -16,7 +16,7 @@ from urllib.parse import urljoin
 from aiohttp import ClientSession
 
 from ..const import BILLA
-from ..text import parse_dates, parse_price
+from ..text import first_range, parse_dates, parse_price
 from .common import SourceError, fetch_text, make_offer
 from .html import parse
 
@@ -111,27 +111,13 @@ def _prices(values: list[float]) -> tuple[float | None, float | None]:
     return new, old
 
 
-_RANGE = re.compile(
-    r"(\d{1,2}\.\d{1,2}\.(?:\d{2,4})?)\s*(?:г\.)?\s*(?:-|–|—|до)\s*(\d{1,2}\.\d{1,2}\.(?:\d{2,4})?)"
-)
-
-
-def page_dates(text: str, today: date) -> list[date]:
-    """The first "01.10 – 07.10.2026" style range in a page's text."""
-    for match in _RANGE.finditer(text):
-        dates = parse_dates(f"{match.group(1)} {match.group(2)}", today)
-        if len(dates) == 2 and 0 <= (dates[1] - dates[0]).days <= 31:
-            return dates
-    return []
-
-
 def parse_offers(html: str, today: date, *, url: str = BASE) -> list[dict[str, Any]]:
     root = parse(html)
     span = root.select_one(".dateSpan")
     dates = parse_dates(span.text(), today) if span else []
     if len(dates) < 2:
         # The date element has moved: take the first date range the page shows.
-        dates = page_dates(root.text(), today)
+        dates = first_range(root.text(), today)
     category = root.select_one("title")
     offers = []
     for product in root.select(".productSection > .product"):
