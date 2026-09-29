@@ -184,11 +184,11 @@ is yours.
   brochures, it asks for the page in every way it knows and shows what each
   got. It also saves each answer in `/config/mealie_planner_debug/`. Send
   those files in an issue so the parser can be fixed.
-- **How pages are asked for.** Some shops serve a light page without offers to
-  clients they take for bots. Each page is asked for, in turn, by a plain
-  client, by an honestly named one (`MealiePlanner`), and with a browser's
-  headers, until one gets the whole page. The one that worked is remembered
-  per site.
+- **How pages are asked for.** A page is read to its end; Kaufland's is over
+  2 MB. It is asked for as a plain client first. If the page lacks what its
+  parser needs, it is asked for again under an honest name (`MealiePlanner`)
+  and then with a browser's headers, for sites that answer differently by
+  client. The way that worked is remembered per site.
 
 ## Products and the shopping list
 

@@ -76,15 +76,27 @@ class SourceError(Exception):
     """A source could not be read; its chain shows the message."""
 
 
+async def _read_all(response, limit: int, url: str) -> bytes:
+    """The whole body, however many pieces it arrives in.
+
+    `content.read(n)` returns only what has arrived so far, which for a large
+    page like Kaufland's is its first few kilobytes.
+    """
+    body = bytearray()
+    async for chunk in response.content.iter_chunked(64 * 1024):
+        body += chunk
+        if len(body) > limit:
+            raise SourceError(f"{url}: too large (over {limit // (1024 * 1024)} MB)")
+    return bytes(body)
+
+
 async def _get(session: ClientSession, url: str, headers: dict[str, str], limit: int, timeout: int) -> str:
     try:
         async with asyncio.timeout(timeout):
             async with session.get(url, headers=headers) as response:
                 if response.status != 200:
                     raise SourceError(f"{url}: HTTP {response.status}")
-                body = await response.content.read(limit + 1)
-                if len(body) > limit:
-                    raise SourceError(f"{url}: the page is too large")
+                body = await _read_all(response, limit, url)
                 return body.decode(response.charset or "utf-8", errors="replace")
     except (TimeoutError, ClientError) as exc:
         raise SourceError(f"{url}: {_reason(exc)}") from exc
@@ -160,9 +172,7 @@ async def fetch_bytes(session: ClientSession, url: str, *, limit: int = 40 * 102
             async with session.get(url, headers=PROFILES[_order(url)[0]]) as response:
                 if response.status != 200:
                     raise SourceError(f"{url}: HTTP {response.status}")
-                body = await response.content.read(limit + 1)
-                if len(body) > limit:
-                    raise SourceError(f"{url}: the file is too large")
+                body = await _read_all(response, limit, url)
                 return body, response.content_type or ""
     except (TimeoutError, ClientError) as exc:
         raise SourceError(f"{url}: {_reason(exc)}") from exc
