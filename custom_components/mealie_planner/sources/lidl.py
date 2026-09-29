@@ -10,14 +10,13 @@ from __future__ import annotations
 import asyncio
 from datetime import date
 import logging
-import re
 from typing import Any
 from urllib.parse import urljoin
 
 from aiohttp import ClientSession
 
 from ..const import LIDL
-from ..text import date_ranges, first_range, parse_dates
+from ..text import first_range, parse_dates
 from .common import SourceError, fetch_text, make_offer
 from .html import parse
 
@@ -51,21 +50,7 @@ def parse_offer_pages(html: str, today: date) -> dict[str, list[date]]:
                     pages[url] = dates
         if pages:
             break
-    if not any(pages.values()):
-        # The front page is built from data in its scripts: find the weekly
-        # offer pages there, as the category link nearest each date range.
-        for position, dates in date_ranges(html, today):
-            start = max(0, position - 400)
-            window = html[start: position + 400]
-            here = position - start
-            links = [(abs(match.start() - here), match.group(1)) for match in _CATEGORY_LINK.finditer(window)]
-            if links:
-                url = urljoin(BASE, min(links)[1])
-                pages[url] = pages.get(url) or dates
     return pages
-
-
-_CATEGORY_LINK = re.compile(r"(?:https?:)?(?://www\.lidl\.bg)?(/c/[a-z0-9\-]+/[as]\d+)")
 
 
 def parse_offer_links(html: str, today: date | None = None) -> list[str]:
