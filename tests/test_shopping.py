@@ -122,6 +122,11 @@ async def main():
         options={"zone_lidl": "zone.lidl", "zone_billa": "zone.billa", "list_entry": "L1"},
     )
     service = PlannerService(hass, entry)
+    check("Lidl reads its weekly brochure by default", service._brochure_title("lidl"), "Седмични предложения")
+    check("other chains read all their brochures", service._brochure_title("kaufland"), "")
+    entry.options["brochure_title_lidl"] = "*"
+    check("the option replaces the default", service._brochure_title("lidl"), "*")
+    del entry.options["brochure_title_lidl"]
     check("shops get a session that takes long headers", service.shop_session.settings.get("max_field_size"), 64 * 1024)
 
     async def group():

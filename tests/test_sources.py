@@ -304,10 +304,47 @@ async def lidl_dates():
 
 asyncio.run(lidl_dates())
 
+# Lidl's real front page (Sept 2026): the dates are on the brochure links
+# ("/l/bg/broshura/…"), a four-week one next to this week's; menu links and
+# Lidl Plus carry none, and the dates also sit in the page's script data.
+REAL_FRONT = """<nav><a href="/c/hrani-i-napitki/s10068374">Храни и напитки</a></nav>
+<a href="https://www.lidl.bg/l/bg/broshura/28-09-25-10/ar/0" class="flyer" data-track-name="от 28.09. до 25.10.">
+  <div class="flyer__name"> от 28.09. до 25.10. </div><span class="flyer__title">Кошница с грижа</span></a>
+<a href="https://www.lidl.bg/l/bg/broshura/28-09-04-10/ar/0" class="flyer" data-track-name="от 28.09. до 04.10.">
+  <div class="flyer__name"> от 28.09. до 04.10. </div><span class="flyer__title">Седмични предложения</span></a>
+<a href="/c/lidl-plus/s10021179">Lidl Plus</a><script>{"period":"28.09. - 04.10."}</script>"""
+PLUS_PAGE = """<title>Lidl Plus</title><div data-selector="PRODUCT" canonicalurl="/p/krenvirsi/p2"></div>"""
+check("lidl: brochure and menu links are not offer pages", lidl.parse_offer_pages(REAL_FRONT, TODAY),
+      {"https://www.lidl.bg/c/lidl-plus/s10021179": []})
+
+
+async def lidl_real_front():
+    common.PREFERRED.clear()
+    site = Pages({
+        "https://www.lidl.bg": REAL_FRONT,
+        "https://www.lidl.bg/c/lidl-plus/s10021179": PLUS_PAGE,
+        "https://www.lidl.bg/p/krenvirsi/p2": SAUSAGES,
+    })
+    found = {o["name"]: o for o in await lidl.fetch(site, TODAY)}
+    check("lidl: only the Lidl Plus products", sorted(found), ["Кренвирши"])
+    check("lidl: they take this week, not the four-week brochure's dates",
+          (found["Кренвирши"]["valid_from"], found["Кренвирши"]["valid_to"]), ("2026-09-28", "2026-10-04"))
+    common.PREFERRED.clear()
+
+
+asyncio.run(lidl_real_front())
+
 check("brochure: viewers inside frames are looked into", brochures.embedded_pages(
     '<iframe src="https://viewer.example/billa/week"></iframe><iframe src="https://www.google.com/recaptcha/x"></iframe>'
     '<iframe data-src="/embed/brochure"></iframe>', "https://www.billa.bg/promocii"),
     ["https://viewer.example/billa/week", "https://www.billa.bg/embed/brochure"])
+
+# Which brochures AI reads: Lidl's weekly one, not the months-long others.
+LIDL_BROCHURES = [{"title": "Кошница с грижа"}, {"title": "Заслужава си"}, {"title": "Седмични предложения"}]
+check("brochure: only the titled one is read", brochures.titled(LIDL_BROCHURES, "Седмични предложения"), [{"title": "Седмични предложения"}])
+check("brochure: part of the title, any case", len(brochures.titled(LIDL_BROCHURES, "седмични")), 1)
+check("brochure: * reads them all", len(brochures.titled(LIDL_BROCHURES, "*")), 3)
+check("brochure: no title reads them all", len(brochures.titled(LIDL_BROCHURES, "")), 3)
 
 # --- Brochures ------------------------------------------------------------------
 links = brochures.find_links(

@@ -128,7 +128,11 @@ Settings → Devices & services → Mealie Planner → **Configure**:
 - **HomeBasket Lists list:** which list products go to, when there is more
   than one.
 - **The week starts on:** Monday by default.
-- **Most brochure pages read by AI:** the cost cap.
+- **Most brochure pages read by AI:** the cost cap. The default is 80, since
+  Lidl's weekly brochure has about 70 pages.
+- **Brochure of each shop to read:** text from the title of the brochures AI
+  reads. For Lidl it is "Седмични предложения", its weekly brochure, rather
+  than the ones that run for months. `*` reads all of a shop's brochures.
 - **Brochure page of each shop:** where brochures are looked for, if a shop
   moves them.
 

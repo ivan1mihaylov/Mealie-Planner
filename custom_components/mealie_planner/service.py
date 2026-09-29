@@ -30,6 +30,7 @@ from .const import (
     DEFAULT_AI_BASE_URL,
     DEFAULT_AI_EFFORT,
     DEFAULT_AI_MODEL,
+    DEFAULT_BROCHURE_TITLES,
     DEFAULT_BROCHURE_URLS,
     DEFAULT_MAX_PAGES,
     DEFAULT_WEEK_START,
@@ -42,6 +43,7 @@ from .const import (
     MODE_LOCAL,
     OPT_AI_EFFORT,
     OPT_BROCHURE_CHAINS,
+    OPT_BROCHURE_TITLE_PREFIX,
     OPT_BROCHURE_URL_PREFIX,
     OPT_LIST_ENTRY,
     OPT_MAX_PAGES,
@@ -134,6 +136,13 @@ class PlannerService:
     def brochure_chains(self) -> list[str]:
         return list(self.options.get(OPT_BROCHURE_CHAINS, [])) if self.ai else []
 
+    def _brochure_title(self, chain: str) -> str:
+        """The text a brochure's title must have to be read; empty reads them all."""
+        key = f"{OPT_BROCHURE_TITLE_PREFIX}{chain}"
+        if key in self.options:
+            return str(self.options.get(key) or "")
+        return DEFAULT_BROCHURE_TITLES[chain]
+
     def zone(self, chain: str | None) -> str | None:
         return self.options.get(f"{OPT_ZONE_PREFIX}{chain}") if chain else None
 
@@ -185,7 +194,9 @@ class PlannerService:
             for chain in self.brochure_chains:
                 url = self.options.get(f"{OPT_BROCHURE_URL_PREFIX}{chain}") or DEFAULT_BROCHURE_URLS[chain]
                 try:
-                    found_brochures = await brochures.find(self.shop_session, chain, url, today)
+                    found_brochures = brochures.titled(
+                        await brochures.find(self.shop_session, chain, url, today), self._brochure_title(chain)
+                    )
                 except SourceError as exc:
                     summary["brochures"][chain] = {"error": str(exc)}
                     continue
@@ -272,9 +283,12 @@ class PlannerService:
                 report[f"{chain}:web"] = {"error": str(exc), "page": await self._diagnose(chain)}
             url = self.options.get(f"{OPT_BROCHURE_URL_PREFIX}{chain}") or DEFAULT_BROCHURE_URLS[chain]
             try:
-                found_brochures = await brochures.find(self.shop_session, chain, url, today)
+                every = await brochures.find(self.shop_session, chain, url, today)
+                found_brochures = brochures.titled(every, self._brochure_title(chain))
                 report[f"{chain}:brochures"] = {
                     "url": url,
+                    "title_filter": self._brochure_title(chain) or None,
+                    "all_titles": [brochure.get("title") for brochure in every],
                     "page": None if found_brochures else await self._diagnose(chain, url, f"{chain}-brochures"),
                     "count": len(found_brochures),
                     "samples": [

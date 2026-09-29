@@ -49,7 +49,7 @@ def parse_offer_pages(html: str, today: date) -> dict[str, list[date]]:
                 if url not in pages or (dates and not pages[url]):
                     pages[url] = dates
         if pages:
-            return pages
+            break
     return pages
 
 
@@ -70,8 +70,8 @@ def parse_product_tiles(html: str) -> tuple[str, list[tuple[str, str | None]]]:
 
 
 def page_dates(html: str, today: date) -> list[date]:
-    """The week an offer page is for, from the first date range it shows."""
-    return first_range(parse(html).text(), today)
+    """The week an offer page is for, from the range it shows, in its text or its data."""
+    return first_range(html, today)
 
 
 def with_dates(offer: dict[str, Any], dates: list[date]) -> dict[str, Any]:
@@ -123,7 +123,7 @@ async def fetch(session: ClientSession, today: date, known: dict[str, dict[str, 
     pages = parse_offer_pages(front, today)
     if not pages:
         raise SourceError("Lidl: no offer pages linked from the front page")
-    front_dates = first_range(parse(front).text(), today)
+    front_dates = first_range(front, today)
     products: dict[str, tuple[str | None, str, list[date]]] = {}
     for page, link_dates in pages.items():
         try:
