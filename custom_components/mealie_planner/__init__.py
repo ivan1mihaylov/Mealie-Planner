@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from datetime import timedelta
+from functools import partial
 import logging
+import os
 from pathlib import Path
 
 from homeassistant.components.frontend import async_remove_panel
@@ -16,7 +18,7 @@ from homeassistant.helpers.event import async_call_later, async_track_time_chang
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.loader import async_get_integration
 
-from .const import DOMAIN
+from .const import DOMAIN, PICTURES_DIR, PICTURES_URL
 from .mealie import PlannerError
 from .service import PlannerService
 from .websocket_api import async_register
@@ -32,8 +34,14 @@ _FIRST_CHECK = timedelta(minutes=2)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Register the static script and WebSocket commands once per Home Assistant run."""
+    pictures = hass.config.path(*PICTURES_DIR)
+    await hass.async_add_executor_job(partial(os.makedirs, pictures, exist_ok=True))
     await hass.http.async_register_static_paths(
-        [StaticPathConfig(_SCRIPT_URL, str(Path(__file__).parent / "panel.js"), False)]
+        [
+            StaticPathConfig(_SCRIPT_URL, str(Path(__file__).parent / "panel.js"), False),
+            # Product pictures cut out of brochures; public, like the brochures.
+            StaticPathConfig(PICTURES_URL, pictures, True),
+        ]
     )
     async_register(hass)
     return True

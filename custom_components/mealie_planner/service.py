@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, timedelta
+import hashlib
 import logging
 import os
 from urllib.parse import urlsplit
@@ -16,7 +17,7 @@ from homeassistant.helpers.aiohttp_client import async_create_clientsession, asy
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
-from . import extraction, planner, rules as rules_mod, shopping
+from . import crops, extraction, planner, rules as rules_mod, shopping
 from .ai import AIClient
 from .const import (
     BILLA,
@@ -51,6 +52,8 @@ from .const import (
     OPT_WEB_CHAINS,
     OPT_WEEK_START,
     OPT_ZONE_PREFIX,
+    PICTURES_DIR,
+    PICTURES_URL,
 )
 from .mealie import MealieClient, PlannerError
 from .offers import OfferBook, OfferIndex
@@ -111,6 +114,8 @@ class PlannerService:
         self.book = OfferBook(await self._offers_store.async_load())
         # The fetchers keep what worked in PREFERRED; the book stores it.
         source_common.PREFERRED.update(self.book.profiles)
+        # Offers read before pictures were cut out show their brochure page.
+        self.book.fill_page_images()
         self.book.profiles = source_common.PREFERRED
         self.recipes = RecipeIndex(await self._recipes_store.async_load())
         stored = await self._settings_store.async_load()
@@ -207,6 +212,7 @@ class PlannerService:
                     self._add(summary["tokens"], result.get("tokens") or {})
                     summary["brochures"][chain]["read"] += 1
         await self._offers_store.async_save(self.book.as_dict())
+        await self._forget_pictures()
         summary["expired"] = removed
         summary["at"] = now
         self.last_refresh = summary
@@ -222,7 +228,9 @@ class PlannerService:
             raise PlannerError("За четене на брошури е нужен AI.", "ai_missing")
         max_pages = int(self.options.get(OPT_MAX_PAGES, DEFAULT_MAX_PAGES))
         try:
-            offers, tokens = await extraction.read_brochure(self.ai, self.shop_session, brochure, max_pages)
+            offers, tokens = await extraction.read_brochure(
+                self.ai, self.shop_session, brochure, max_pages, cropper=self._keep_picture
+            )
         except (PlannerError, SourceError) as exc:
             _LOGGER.warning("Brochure %s could not be read: %s", brochure.get("title"), exc)
             self.book.add_brochure(brochure, [], when, error=str(exc))
@@ -238,7 +246,44 @@ class PlannerService:
             raise PlannerError("Няма такава брошура.", "not_found")
         brochure = source["brochure"]
         self.book.forget(source_id)
-        return await self._read_brochure(brochure, dt_util.utcnow().isoformat())
+        result = await self._read_brochure(brochure, dt_util.utcnow().isoformat())
+        await self._forget_pictures()
+        return result
+
+    # --- Pictures cut out of brochure pages ---------------------------------
+    def _pictures_dir(self) -> str:
+        return self.hass.config.path(*PICTURES_DIR)
+
+    async def _keep_picture(self, data: bytes, box: tuple, offer_id: str) -> str | None:
+        """Cut an offer's picture out of its page and keep it; its URL, or None."""
+        picture = await self.hass.async_add_executor_job(crops.crop, data, box)
+        if not picture:
+            return None
+        name = crops.file_name(offer_id)
+        folder = self._pictures_dir()
+
+        def save() -> None:
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, name), "wb") as file:
+                file.write(picture)
+
+        await self.hass.async_add_executor_job(save)
+        # The version makes browsers fetch a picture read again.
+        return f"{PICTURES_URL}/{name}?v={hashlib.sha1(picture).hexdigest()[:8]}"
+
+    async def _forget_pictures(self) -> None:
+        """Delete the pictures of offers that have ended or were read again."""
+        keep = {crops.file_name(offer_id) for offer_id in self.book.offers}
+        folder = self._pictures_dir()
+
+        def clean() -> None:
+            if not os.path.isdir(folder):
+                return
+            for name in os.listdir(folder):
+                if name.endswith(".jpg") and name not in keep:
+                    os.remove(os.path.join(folder, name))
+
+        await self.hass.async_add_executor_job(clean)
 
     async def async_add_brochure(self, chain: str, url: str, title: str | None, valid_from: str | None, valid_to: str | None) -> dict[str, Any]:
         """Read a brochure the user points at: a PDF, an image, or a page linking to one."""
