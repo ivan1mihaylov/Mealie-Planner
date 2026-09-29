@@ -44,7 +44,7 @@ const TEXT = {
     added: "Добавени {n} в списъка.", listMissing: "Инсталирай HomeBasket Lists, за да добавяш в списък.",
     listPick: "Списък", homeShop: "Не е в промоция; купува се тук според HomeBasket Lists", recipesFor: "за", byHand: "избрано ръчно", matches: "{n} подходящи",
     similar: "Подобни продукти", sim_food: "Същата храна", sim_name: "Подобно име", sim_category: "Същия вид",
-    choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", noDates: "без дата", until: "до",
+    choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", noDates: "без дата", zoomPage: "Цялата страница", zoomProduct: "Само продукта", until: "до",
     unit_kg: "кг", unit_l: "л", unit_pc: "бр.", page: "стр.", unitPrice: "{price} €/{unit}", estimate: "Сума на избраните в промоция: {sum} €",
     refresh: "Провери за нови", refreshing: "Проверява…", rescan: "Прочети отново", addBrochure: "Добави брошура",
     probe: "Проверка на източниците", tokens: "AI: {p} + {c} токена", web: "Сайт", brochure: "Брошура",
@@ -83,7 +83,7 @@ const TEXT = {
     added: "{n} added to the list.", listMissing: "Install HomeBasket Lists to add to a list.",
     listPick: "List", homeShop: "Not on sale; bought here according to HomeBasket Lists", recipesFor: "for", byHand: "picked by hand", matches: "{n} matching",
     similar: "Similar products", sim_food: "Same food", sim_name: "Similar name", sim_category: "Same kind",
-    choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", noDates: "no dates", until: "until",
+    choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", noDates: "no dates", zoomPage: "Whole page", zoomProduct: "Just the product", until: "until",
     unit_kg: "kg", unit_l: "l", unit_pc: "pc", page: "p.", unitPrice: "{price} €/{unit}", estimate: "Selected items on sale: {sum} €",
     refresh: "Check for new", refreshing: "Checking…", rescan: "Read again", addBrochure: "Add brochure",
     probe: "Check the sources", tokens: "AI: {p} + {c} tokens", web: "Website", brochure: "Brochure",
@@ -307,6 +307,12 @@ class MealiePlannerPanel extends HTMLElement {
         .days input { width:18px; height:18px; accent-color:var(--mp-accent) }
         dialog { border:0; border-radius:20px; padding:0; width:min(640px, calc(100% - 24px)); max-height:calc(100% - 48px); background:var(--mp-card); color:var(--mp-text); box-shadow:0 20px 60px rgba(0,0,0,.35) }
         dialog::backdrop { background:rgba(0,0,0,.4) }
+        .zoomable { cursor:zoom-in }
+        dialog.zoom { width:fit-content; max-width:calc(100vw - 24px); max-height:calc(100vh - 24px); background:#fff; color:#212121; padding:0; overflow:hidden }
+        dialog.zoom::backdrop { background:rgba(0,0,0,.75) }
+        .zoom .zbar { display:flex; align-items:center; gap:8px; padding:8px 8px 8px 16px; background:var(--mp-card); color:var(--mp-text) }
+        .zoom .zbar b { flex:1; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+        .zoom img { display:block; height:min(calc(100vh - 80px), 1000px); width:auto; max-width:calc(100vw - 24px); margin:auto; object-fit:contain; cursor:zoom-out }
         .dhead { display:flex; align-items:center; gap:8px; padding:14px 16px; border-bottom:1px solid var(--mp-line); position:sticky; top:0; background:var(--mp-card); z-index:1 }
         .dhead h2 { margin:0; font-size:17px; flex:1 }
         .dbody { padding:12px 16px 16px; display:flex; flex-direction:column; gap:10px }
@@ -337,6 +343,7 @@ class MealiePlannerPanel extends HTMLElement {
       <nav class="tabs" role="tablist"></nav>
       <main id="main"></main>
       <dialog id="dialog"></dialog>
+      <dialog id="zoom" class="zoom"></dialog>
       <div class="toast" id="toast" role="status"></div>
     `;
     this._menu = root.querySelector("ha-menu-button");
@@ -344,6 +351,9 @@ class MealiePlannerPanel extends HTMLElement {
     this._menu.narrow = this._narrow;
     this._main = root.getElementById("main");
     this._dialog = root.getElementById("dialog");
+    this._zoom = root.getElementById("zoom");
+    // A tap outside the picture closes it.
+    this._zoom.addEventListener("click", (event) => { if (event.target === this._zoom) this._zoom.close(); });
     root.addEventListener("click", (event) => this._click(event));
     root.addEventListener("change", (event) => this._change(event));
     root.addEventListener("input", (event) => this._input(event));
@@ -627,7 +637,7 @@ class MealiePlannerPanel extends HTMLElement {
     this._dialog.innerHTML = `<div class="dhead"><h2>${esc(item.name)}</h2><button class="round" data-action="closedialog">${icon("close")}</button></div>
       <div class="dbody">
         <div class="muted">${esc(this._amount(item))} ${item.recipes.length ? "· " + esc(this.t("recipesFor")) + " " + esc(item.recipes.join(", ")) : ""}</div>
-        ${offer ? `<div class="current">${offer.image ? `<img src="${esc(offer.image)}" alt="" onerror="this.style.display='none'">` : ""}
+        ${offer ? `<div class="current">${offer.image ? `<img src="${esc(offer.image)}" alt="" ${this._zoomAttrs(offer)} onerror="this.style.display='none'">` : ""}
           <div class="main" style="flex:1"><div class="title"><b>${esc(CHAINS[offer.chain])}</b> · ${esc(offer.name)}</div>
           <div class="muted">${esc(this._offerMeta(offer))}</div>${this._priceHtml(offer)}
           ${offer.url ? `<a class="muted" href="${esc(offer.url)}" target="_blank" rel="noreferrer">${icon("open", 14)}</a>` : ""}</div></div>`
@@ -650,10 +660,25 @@ class MealiePlannerPanel extends HTMLElement {
     box.innerHTML = alts.length ? alts.map((alt) => {
       const head = alt.similarity !== group ? `<div class="simhead">${esc(this.t("sim_" + alt.similarity))}</div>` : "";
       group = alt.similarity;
-      return `${head}<div class="alt">${alt.image ? `<img src="${esc(alt.image)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">` : ""}
+      return `${head}<div class="alt">${alt.image ? `<img src="${esc(alt.image)}" alt="" loading="lazy" ${this._zoomAttrs(alt)} onerror="this.style.visibility='hidden'">` : ""}
         <div class="main"><div class="title"><b>${esc(CHAINS[alt.chain])}</b> · ${esc(alt.name)}</div><div class="sub muted">${esc(this._offerMeta(alt))}</div></div>
         ${this._priceHtml(alt)}<button class="btn small" data-action="choose-offer" data-key="${esc(key)}" data-offer="${esc(alt.id)}">${this.t("choose")}</button></div>`;
     }).join("") : `<div class="muted">—</div>`;
+  }
+
+  _zoomAttrs(offer) {
+    const page = offer.page_image && offer.page_image !== offer.image ? offer.page_image : "";
+    return `class="zoomable" data-action="zoom" data-src="${esc(offer.image)}" data-page="${esc(page)}" data-title="${esc(`${CHAINS[offer.chain] || ""} · ${offer.name}`)}"`;
+  }
+
+  _openZoom(src, page, title, showingPage = false) {
+    const shown = showingPage ? page : src;
+    const other = page ? `<button class="btn small" data-action="zoom-other">${this.t(showingPage ? "zoomProduct" : "zoomPage")}</button>` : "";
+    this._zoom.innerHTML = `<div class="zbar"><b>${esc(title)}</b>${other}
+      <button class="round" data-action="zoom-close" aria-label="${this.t("close")}">${icon("close")}</button></div>
+      <img src="${esc(shown)}" alt="${esc(title)}" data-action="zoom-close">`;
+    this._zoomState = { src, page, title, showingPage };
+    if (!this._zoom.open) this._zoom.showModal();
   }
 
   _offerMeta(offer) {
@@ -752,7 +777,7 @@ class MealiePlannerPanel extends HTMLElement {
     const dates = offer.valid_from || offer.valid_to ? `${this.t("validity")} ${short(offer.valid_from)}–${short(offer.valid_to)}` : this.t("noDates");
     const lists = this._view ? this._view.lists : this._state.lists;
     return `<article class="offer">
-      <div class="img">${offer.image ? `<img src="${esc(offer.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🛒'}))">` : `<span class="ph">🛒</span>`}</div>
+      <div class="img">${offer.image ? `<img src="${esc(offer.image)}" alt="" loading="lazy" ${this._zoomAttrs(offer)} onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🛒'}))">` : `<span class="ph">🛒</span>`}</div>
       <span class="shop ${offer.chain}" style="background:${CHAIN_COLORS[offer.chain]}">${CHAINS[offer.chain]}</span>
       ${offer.discount_pct ? `<span class="disc">−${offer.discount_pct}%</span>` : ""}
       <div class="info"><div class="oname">${esc(offer.name)}</div>
@@ -903,6 +928,18 @@ class MealiePlannerPanel extends HTMLElement {
         await this._run(null, () => this._setView(this._ws("plan/move_slot", { week, source, target: target.dataset.slot })));
         break;
       }
+      case "zoom":
+        event.stopPropagation();
+        this._openZoom(target.dataset.src, target.dataset.page, target.dataset.title);
+        break;
+      case "zoom-other": {
+        const state = this._zoomState;
+        this._openZoom(state.src, state.page, state.title, !state.showingPage);
+        break;
+      }
+      case "zoom-close":
+        this._zoom.close();
+        break;
       case "closedialog":
         this._dialog.close();
         break;
