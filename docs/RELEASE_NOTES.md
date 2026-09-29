@@ -1,3 +1,2 @@
-- **The whole shop pages, not the light ones.** Kaufland and Lidl served Home Assistant a stripped page without offers or brochure links, while browsers got the full one. Pages are now asked for in up to three ways, from a plain client to a full browser request, until one has the data. The way that worked is remembered for each site and asked first next time.
-- **The source check shows every way of asking.** For each failing page it lists what each way got (size, markers, dates) and which one the source uses, and saves each answer in `/config/mealie_planner_debug/`.
-- **Billa's weekly brochure offers get dates.** That page has none; its offers now take the week the other Billa pages show. Offers still without dates say "без дата".
+- **Kaufland and Lidl offers are read.** Shop pages were read only as far as the first pieces that had arrived: 14 KB of Lidl's pages and at most 60 KB of Kaufland's, which is over 2 MB. The offers and brochure links come later, so they were never seen; Billa's small pages arrived in one piece and worked. Pages are now read to the end.
+- **Brochure images and PDFs arrive whole** for AI to read. They had the same problem.

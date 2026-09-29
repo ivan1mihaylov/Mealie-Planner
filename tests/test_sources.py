@@ -167,11 +167,17 @@ from mealie_planner.sources import common
 
 
 class _Content:
-    def __init__(self, body):
-        self._body = body
+    """Like aiohttp's: the body arrives in pieces, and read(n) returns only the first."""
+
+    def __init__(self, body, piece=8 * 1024):
+        self._pieces = [body[i:i + piece] for i in range(0, len(body), piece)] or [b""]
 
     async def read(self, n):
-        return self._body[:n]
+        return self._pieces[0][:n]
+
+    async def iter_chunked(self, n):
+        for piece in self._pieces:
+            yield piece
 
 
 class _Response:
@@ -227,6 +233,19 @@ async def profiles():
         check("profiles: with none working, the parser still reports", False, True)
     except SourceError as exc:
         check("profiles: with none working, the parser still reports", ("no offer data" in str(exc), len(site.asked)), (True, 3))
+
+    # A page larger than one piece is read to its end: the offers come late in it.
+    common.PREFERRED.clear()
+    padded = "<html>" + "<!-- -->" * 20000 + KAUFLAND_PAGE
+    found = await kaufland.fetch(Site(padded, LIGHT, "plain"), TODAY)
+    check("whole page: offers far past the first piece are found", (len(padded) > 100_000, len(found)), (True, 3))
+    try:
+        await common.fetch_text(Site(padded, LIGHT, "plain"), kaufland.URL, limit=50_000)
+        check("whole page: a page over the limit is refused", False, True)
+    except SourceError as exc:
+        check("whole page: a page over the limit is refused", "too large" in str(exc), True)
+    data, _ = await common.fetch_bytes(Site(padded, LIGHT, "plain"), "https://x/brochure.pdf")
+    check("whole file: a brochure file arrives whole", len(data), len(padded.encode()))
 
     each = await common.fetch_each_profile(Site(KAUFLAND_PAGE, LIGHT, "app"), kaufland.URL)
     check("profiles: the source check asks every way", [(name, kaufland.is_full_page(html)) for name, html, _ in each],
