@@ -140,7 +140,7 @@ async def read_brochure(
                 content.append(image_part(data, kind))
             if len(content) == 1:
                 continue
-            raw, tokens = await ai.chat_json(SYSTEM, content, schema=OFFER_SCHEMA, name="offers", max_tokens=8000)
+            raw, tokens = await ai.chat_json(SYSTEM, content, schema=OFFER_SCHEMA, name="offers", max_tokens=16000)
             add(tokens)
             offers.extend(_to_offers(raw, chain, brochure, first + 1))
         return offers, used
@@ -155,7 +155,7 @@ async def read_brochure(
                 {"type": "text", "text": _intro(chain, brochure, f"Read only pages {first}–{last} of the attached PDF.")},
                 part,
             ]
-            raw, tokens = await ai.chat_json(SYSTEM, content, schema=OFFER_SCHEMA, name="offers", max_tokens=12000, timeout=300)
+            raw, tokens = await ai.chat_json(SYSTEM, content, schema=OFFER_SCHEMA, name="offers", max_tokens=24000, timeout=300)
             add(tokens)
             offers.extend(_to_offers(raw, chain, brochure, None))
         return offers, used
@@ -200,7 +200,7 @@ async def name_offers(ai: AIClient, offers: list[dict[str, Any]]) -> dict[str, i
     for first in range(0, len(todo), _NAMES_PER_CALL):
         batch = todo[first:first + _NAMES_PER_CALL]
         lines = "\n".join(f"{i}. {offer['name']}" for i, offer in enumerate(batch))
-        raw, tokens = await ai.chat_json(NAMES_SYSTEM, lines, schema=NAMES_SCHEMA, name="products", max_tokens=6000)
+        raw, tokens = await ai.chat_json(NAMES_SYSTEM, lines, schema=NAMES_SCHEMA, name="products", max_tokens=12000)
         used["prompt"] += tokens["prompt"]
         used["completion"] += tokens["completion"]
         for item in (raw.get("items") if isinstance(raw, dict) else raw) or []:

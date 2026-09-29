@@ -26,6 +26,7 @@ from .const import (
     CONF_MEALIE_TOKEN,
     CONF_MEALIE_URL,
     DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_EFFORT,
     DEFAULT_AI_MODEL,
     DEFAULT_BROCHURE_URLS,
     DEFAULT_MAX_PAGES,
@@ -37,6 +38,7 @@ from .const import (
     MEAL_TYPES,
     MODE_AI,
     MODE_LOCAL,
+    OPT_AI_EFFORT,
     OPT_BROCHURE_CHAINS,
     OPT_BROCHURE_URL_PREFIX,
     OPT_LIST_ENTRY,
@@ -83,6 +85,7 @@ class PlannerService:
                 data.get(CONF_AI_BASE_URL) or DEFAULT_AI_BASE_URL,
                 data.get(CONF_AI_KEY) or "",
                 data.get(CONF_AI_MODEL) or DEFAULT_AI_MODEL,
+                effort=_effort(entry.options.get(OPT_AI_EFFORT, DEFAULT_AI_EFFORT)),
             )
         self._offers_store: Store = Store(hass, _STORE_VERSION, f"{DOMAIN}.offers")
         self._recipes_store: Store = Store(hass, _STORE_VERSION, f"{DOMAIN}.recipes")
@@ -454,7 +457,7 @@ class PlannerService:
             key=lambda candidate: (-len(candidate.flags), -candidate.score),
         )[:_AI_CANDIDATES]
         prompt, short = planner.ai_prompt(slots, pool, rules, fixed)
-        answer, tokens = await self.ai.chat_json(planner.AI_SYSTEM, prompt, schema=planner.AI_SCHEMA, name="plan", max_tokens=3000)
+        answer, tokens = await self.ai.chat_json(planner.AI_SYSTEM, prompt, schema=planner.AI_SCHEMA, name="plan", max_tokens=8000)
         self.book.add_usage(tokens)
         await self._offers_store.async_save(self.book.as_dict())
         return planner.read_ai_plan(answer, short, slots, fixed)
@@ -709,6 +712,11 @@ class PlannerService:
         if not query:
             ranked.sort(key=lambda item: (-item["needed"], -item["score"], item["name"] or ""))
         return ranked[:60]
+
+
+def _effort(value: str | None) -> str | None:
+    """The reasoning effort to send, or None to send none."""
+    return None if value in (None, "", "default") else value
 
 
 def _note(offer: dict[str, Any]) -> str:
