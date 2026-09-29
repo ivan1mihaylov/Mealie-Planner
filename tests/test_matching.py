@@ -12,7 +12,7 @@ from support import check, done
 
 from mealie_planner.classify import classify
 from mealie_planner.offers import OfferIndex
-from mealie_planner.text import contains, overlaps, parse_dates, parse_price, parse_quantity, unit_price
+from mealie_planner.text import contains, first_range, overlaps, parse_dates, parse_price, parse_quantity, unit_price
 
 TODAY = date(2026, 10, 1)
 
@@ -37,6 +37,10 @@ check("multipack", parse_quantity("4 x 125 г"), (0.5, "kg"))
 check("litres", parse_quantity("1,5 л"), (1.5, "l"))
 check("pieces", parse_quantity("10 бр."), (10.0, "pc"))
 check("unit price per kg", unit_price(2.0, "400 г"), (5.0, "kg"))
+check("за kg is one kilogram", parse_quantity("за kg"), (1.0, "kg"))
+check("price per kg for loose fruit", unit_price(1.89, "за kg"), (1.89, "kg"))
+check("grams in Latin letters", parse_quantity("2 x 90 g/опаковка"), (0.18, "kg"))
+check("first real date range", first_range("3.41.23-3.41.23 и после 28.09. - 04.10.", TODAY), [date(2026, 9, 28), date(2026, 10, 4)])
 check("no size, no unit price", unit_price(2.0, "опаковка"), None)
 
 # Dates: a missing year is today's, and the first date borrows the second's.
@@ -57,6 +61,10 @@ check("green peppers are not cabbage", classify("Зелени чушки"), ("ч
 check("frozen shrimp are fish", classify("Замразени скариди"), ("скариди", "fish"))
 check("olive oil is not butter", classify("Monini Маслиново масло extra virgin"), ("зехтин", "pantry"))
 check("butter is still butter", classify("Deutsche Markenbutter краве масло"), ("масло", "dairy"))
+check("roses are not vegetables", classify("Букет рози 50 см", "Плодове и зеленчуци")[1], "non_food")
+check("an orchid is not a vegetable", classify("Цветна орхидея Фаленопсис", "Плодове и зеленчуци")[1], "non_food")
+check("cauliflower is still a vegetable", classify("Цветно зеле"), ("карфиол", "vegetables"))
+check("figs are fruit", classify("Смокиня"), ("смокини", "fruit"))
 check("detergent", classify("Препарат за съдове")[1], "non_food")
 check("shop category settles the rest", classify("Нещо непознато", "Месо и риба")[1], "fish")
 
