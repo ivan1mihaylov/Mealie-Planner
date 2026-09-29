@@ -172,6 +172,10 @@ is yours.
 | Lidl | the offer pages linked from lidl.bg, then each product's page, with its own dates | Lidl's leaflet viewer |
 | Billa | ssbbilla.site, Billa's plain offers site, with the week's dates | the weekly brochure on billa.bg |
 
+- **Brochure offers have pictures.** AI also says where each product's picture
+  is on its brochure page; that part of the page is cut out and kept in
+  `/config/mealie_planner/pictures/`, and deleted when the offer ends. Offers
+  without such a box show their whole page.
 - **Each offer carries its own validity.** One brochure can mix
   week-long offers with "Friday and Saturday only" ones. Offers leave when
   their own date passes.

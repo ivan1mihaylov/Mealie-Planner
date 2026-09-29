@@ -141,6 +141,15 @@ class OfferBook:
         for key in [key for key, offer in self.offers.items() if offer.get("source_id") == source_id]:
             del self.offers[key]
 
+    def fill_page_images(self) -> None:
+        """Give brochure offers without a picture their page, where it is known."""
+        for offer in self.offers.values():
+            if offer.get("image") or not offer.get("page"):
+                continue
+            pages = ((self.sources.get(offer.get("source_id")) or {}).get("brochure") or {}).get("pages") or []
+            if 1 <= offer["page"] <= len(pages):
+                offer["image"] = pages[offer["page"] - 1]
+
     # --- Reading --------------------------------------------------------------
     def current(self, today: date) -> list[dict[str, Any]]:
         """Offers that have not ended, including ones that start later."""

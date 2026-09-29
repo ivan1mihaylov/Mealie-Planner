@@ -1,2 +1,2 @@
-- **The gear opens the options again.** The integration's gear in Settings → Devices & services opened the Mealie Planner panel instead of its options, so the shop zones, the brochures read by AI, the page limit, the shopping list and the planner mode could not be changed. It opens the options now; the panel stays in the sidebar.
-- **The panel's Settings tab says where the rest is,** with a link to the integration.
+- **Brochure offers have pictures.** When AI reads a brochure page it now also says where each product's picture is on the page. That part of the page, already downloaded for the AI, is cut out and kept as a small picture in Home Assistant (`/config/mealie_planner/pictures/`), and the offer shows it. Pictures of offers that have ended are deleted.
+- **Offers read before show their brochure page** as their picture. To get the cut-out product pictures for them, press "Прочети отново" on the brochure in the Промоции tab; it is read once more.

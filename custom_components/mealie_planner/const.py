@@ -79,3 +79,8 @@ CATEGORIES = (
 )
 
 LISTS_API = "homebasket_lists_api"
+
+# Product pictures cut out of brochure pages, under the config folder, and
+# the URL Home Assistant serves them at.
+PICTURES_DIR = ("mealie_planner", "pictures")
+PICTURES_URL = "/mealie_planner/pictures"

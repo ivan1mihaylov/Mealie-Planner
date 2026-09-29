@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from aiohttp import ClientSession
 
 from .ai import AIClient, image_part, pdf_part
 from .classify import classify
+from .crops import clean_box
 from .const import CATEGORIES, CHAIN_NAMES
 from .mealie import PlannerError
 from .sources.common import SourceError, fetch_bytes, make_offer
@@ -40,6 +41,8 @@ OFFER_SCHEMA = {
                     "valid_to": {"type": ["string", "null"]},
                     "conditions": {"type": ["string", "null"]},
                     "page": {"type": ["integer", "null"]},
+                    "img": {"type": ["integer", "null"]},
+                    "box": {"type": ["array", "null"], "items": {"type": "number"}},
                 },
                 "required": ["name", "category", "price"],
             },
@@ -60,15 +63,36 @@ For each offer return:
 - valid_from / valid_to: the dates THIS offer is valid, as YYYY-MM-DD. Offers on the same page can have different dates ("само в събота", "от четвъртък"); use the brochure's dates only when the offer has none of its own.
 - conditions: limits such as "с Lidl Plus", "при покупка на 2 бр.", or null.
 - page: the page number.
+- img: when you are given page images, which of them the offer is on: 1 for the first image of this request, 2 for the second, and so on.
+- box: where the product's picture is on that image, as [left, top, right, bottom], each a fraction of the image's width or height from 0 to 1. Take the photo of the product, not the price tag. null if there is none.
 Leave out anything that is not an offer. Return JSON only."""
 
 
-def _to_offers(raw: Any, chain: str, brochure: dict[str, Any], default_page: int | None) -> list[dict[str, Any]]:
+def _to_offers(
+    raw: Any,
+    chain: str,
+    brochure: dict[str, Any],
+    default_page: int | None,
+    images: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Offers from the AI's answer. `images` are the page images of the request, in order.
+
+    With images, each offer knows its page image and, when the AI gave one,
+    the box of its picture on it (`box`, kept until the picture is cut out).
+    """
     items = raw.get("offers") if isinstance(raw, dict) else raw
     offers = []
     for item in items or []:
         if not isinstance(item, dict):
             continue
+        page_image = None
+        page = item.get("page")
+        img = item.get("img")
+        if images and isinstance(img, int) and 1 <= img <= len(images):
+            page_image = images[img - 1]
+            page = (default_page or 1) + img - 1
+        elif images and len(images) == 1:
+            page_image = images[0]
         category = item.get("category") if item.get("category") in CATEGORIES else None
         food = (item.get("food") or "").strip().lower() or None
         if category is None or food is None:
@@ -87,7 +111,8 @@ def _to_offers(raw: Any, chain: str, brochure: dict[str, Any], default_page: int
             quantity=item.get("quantity"),
             valid_from=iso(item.get("valid_from")) or brochure.get("valid_from"),
             valid_to=iso(item.get("valid_to")) or brochure.get("valid_to"),
-            page=item.get("page") or default_page,
+            page=page or default_page,
+            image=page_image,
             food=food,
             category=category or "other_food",
             conditions=item.get("conditions"),
@@ -95,6 +120,11 @@ def _to_offers(raw: Any, chain: str, brochure: dict[str, Any], default_page: int
             key_parts=(brochure["id"], item.get("name"), item.get("quantity"), item.get("price"), item.get("page")),
         )
         if offer is not None:
+            box = clean_box(item.get("box")) if page_image else None
+            if box:
+                offer["box"] = list(box)
+            if page_image:
+                offer["page_image"] = page_image
             offers.append(offer)
     return offers
 
@@ -111,10 +141,22 @@ def pdf_page_count(data: bytes) -> int:
     return max(1, len(re.findall(rb"/Type\s*/Page(?!s)", data)))
 
 
+Cropper = Callable[[bytes, tuple, str], Awaitable[str | None]]
+
+
 async def read_brochure(
-    ai: AIClient, session: ClientSession, brochure: dict[str, Any], max_pages: int
+    ai: AIClient,
+    session: ClientSession,
+    brochure: dict[str, Any],
+    max_pages: int,
+    cropper: Cropper | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-    """All offers in a brochure, and the tokens spent reading it."""
+    """All offers in a brochure, and the tokens spent reading it.
+
+    With a `cropper`, each offer's picture is cut out of its page image, which
+    is already here for the AI, and the offer shows it; without one, or when
+    the AI gave no box, the offer shows its whole page.
+    """
     chain = brochure["chain"]
     used = {"prompt": 0, "completion": 0}
     offers: list[dict[str, Any]] = []
@@ -131,6 +173,7 @@ async def read_brochure(
             content: list[dict[str, Any]] = [
                 {"type": "text", "text": _intro(chain, brochure, f"Pages {first + 1}–{first + len(batch)}, in order.")}
             ]
+            sent: list[tuple[str, bytes]] = []
             for url in batch:
                 try:
                     data, kind = await fetch_bytes(session, url, limit=8 * 1024 * 1024)
@@ -138,11 +181,20 @@ async def read_brochure(
                     _LOGGER.debug("Brochure page skipped: %s", exc)
                     continue
                 content.append(image_part(data, kind))
-            if len(content) == 1:
+                sent.append((url, data))
+            if not sent:
                 continue
             raw, tokens = await ai.chat_json(SYSTEM, content, schema=OFFER_SCHEMA, name="offers", max_tokens=16000)
             add(tokens)
-            offers.extend(_to_offers(raw, chain, brochure, first + 1))
+            found = _to_offers(raw, chain, brochure, first + 1, [url for url, _ in sent])
+            pages_data = dict(sent)
+            for offer in found:
+                box = offer.pop("box", None)
+                if cropper and box and offer.get("page_image") in pages_data:
+                    picture = await cropper(pages_data[offer["page_image"]], tuple(box), offer["id"])
+                    if picture:
+                        offer["image"] = picture
+            offers.extend(found)
         return offers, used
 
     if brochure.get("pdf"):
