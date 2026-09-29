@@ -89,13 +89,13 @@ def parse_product(html: str, today: date, *, url: str, image: str | None, catego
 async def fetch(session: ClientSession, today: date, known: dict[str, dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """All offers; product pages already known (by URL) are not fetched again."""
     known = known or {}
-    pages = parse_offer_links(await fetch_text(session, BASE))
+    pages = parse_offer_links(await fetch_text(session, BASE, expect=lambda html: bool(parse_offer_links(html))))
     if not pages:
         raise SourceError("Lidl: no offer pages linked from the front page")
     products: list[tuple[str, str | None, str]] = []
     for page in pages:
         try:
-            title, tiles = parse_product_tiles(await fetch_text(session, page))
+            title, tiles = parse_product_tiles(await fetch_text(session, page, expect=lambda html: "PRODUCT" in html))
         except SourceError as exc:
             _LOGGER.debug("Lidl page skipped: %s", exc)
             continue
@@ -111,7 +111,7 @@ async def fetch(session: ClientSession, today: date, known: dict[str, dict[str, 
             return
         async with semaphore:
             try:
-                offer = parse_product(await fetch_text(session, url), today, url=url, image=image, category=title)
+                offer = parse_product(await fetch_text(session, url, expect=lambda html: "heading__title" in html), today, url=url, image=image, category=title)
             except SourceError as exc:
                 _LOGGER.debug("Lidl product skipped: %s", exc)
                 return

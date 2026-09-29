@@ -44,7 +44,7 @@ const TEXT = {
     added: "Добавени {n} в списъка.", listMissing: "Инсталирай HomeBasket Lists, за да добавяш в списък.",
     listPick: "Списък", homeShop: "Не е в промоция; купува се тук според HomeBasket Lists", recipesFor: "за", byHand: "избрано ръчно", matches: "{n} подходящи",
     similar: "Подобни продукти", sim_food: "Същата храна", sim_name: "Подобно име", sim_category: "Същия вид",
-    choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", until: "до",
+    choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", noDates: "без дата", until: "до",
     unit_kg: "кг", unit_l: "л", unit_pc: "бр.", page: "стр.", unitPrice: "{price} €/{unit}", estimate: "Сума на избраните в промоция: {sum} €",
     refresh: "Провери за нови", refreshing: "Проверява…", rescan: "Прочети отново", addBrochure: "Добави брошура",
     probe: "Проверка на източниците", tokens: "AI: {p} + {c} токена", web: "Сайт", brochure: "Брошура",
@@ -83,7 +83,7 @@ const TEXT = {
     added: "{n} added to the list.", listMissing: "Install HomeBasket Lists to add to a list.",
     listPick: "List", homeShop: "Not on sale; bought here according to HomeBasket Lists", recipesFor: "for", byHand: "picked by hand", matches: "{n} matching",
     similar: "Similar products", sim_food: "Same food", sim_name: "Similar name", sim_category: "Same kind",
-    choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", until: "until",
+    choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", noDates: "no dates", until: "until",
     unit_kg: "kg", unit_l: "l", unit_pc: "pc", page: "p.", unitPrice: "{price} €/{unit}", estimate: "Selected items on sale: {sum} €",
     refresh: "Check for new", refreshing: "Checking…", rescan: "Read again", addBrochure: "Add brochure",
     probe: "Check the sources", tokens: "AI: {p} + {c} tokens", web: "Website", brochure: "Brochure",
@@ -603,7 +603,7 @@ class MealiePlannerPanel extends HTMLElement {
 
   _priceHtml(offer) {
     if (!offer) return `<div class="price muted">${this.t("noOffer")}</div>`;
-    const dates = offer.valid_from || offer.valid_to ? `${short(offer.valid_from)}–${short(offer.valid_to)}` : "";
+    const dates = offer.valid_from || offer.valid_to ? `${short(offer.valid_from)}–${short(offer.valid_to)}` : this.t("noDates");
     return `<div class="price"><b>${money(offer.price)} €</b>${offer.old_price ? `<s>${money(offer.old_price)}</s>` : ""}
       ${offer.discount_pct ? `<span class="off">−${offer.discount_pct}%</span>` : ""}<span class="dates">${esc(dates)}</span></div>`;
   }
@@ -749,7 +749,7 @@ class MealiePlannerPanel extends HTMLElement {
   }
 
   _offerCard(offer) {
-    const dates = offer.valid_from || offer.valid_to ? `${this.t("validity")} ${short(offer.valid_from)}–${short(offer.valid_to)}` : "";
+    const dates = offer.valid_from || offer.valid_to ? `${this.t("validity")} ${short(offer.valid_from)}–${short(offer.valid_to)}` : this.t("noDates");
     const lists = this._view ? this._view.lists : this._state.lists;
     return `<article class="offer">
       <div class="img">${offer.image ? `<img src="${esc(offer.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'ph',textContent:'🛒'}))">` : `<span class="ph">🛒</span>`}</div>

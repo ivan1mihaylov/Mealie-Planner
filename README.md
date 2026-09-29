@@ -181,9 +181,14 @@ is yours.
 - **Check the sources** on the Offers tab shows what each source finds right
   now, without keeping anything or spending AI. Use it when a shop changes its
   website. When a source fails, gives offers without dates or finds no
-  brochures, it also shows what the page looked like and saves a copy in
-  `/config/mealie_planner_debug/`. Send that file in an issue so the parser
-  can be fixed.
+  brochures, it asks for the page in every way it knows and shows what each
+  got. It also saves each answer in `/config/mealie_planner_debug/`. Send
+  those files in an issue so the parser can be fixed.
+- **How pages are asked for.** Some shops serve a light page without offers to
+  clients they take for bots. Each page is asked for, in turn, by a plain
+  client, by an honestly named one (`MealiePlanner`), and with a browser's
+  headers, until one gets the whole page. The one that worked is remembered
+  per site.
 
 ## Products and the shopping list
 

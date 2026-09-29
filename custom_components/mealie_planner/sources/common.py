@@ -5,22 +5,62 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import re
-from typing import Any
+from typing import Any, Callable
+from urllib.parse import urlsplit
 
 from aiohttp import ClientError, ClientSession
 
 from ..classify import classify
 from ..text import discount, iso, normalize, parse_price, unit_price
 
-# Shops serve a different page, or none, to clients that do not look like a browser.
-HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/128.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-    "Accept-Language": "bg-BG,bg;q=0.9,en;q=0.6",
+_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8"
+_LANGUAGE = "bg-BG,bg;q=0.9,en;q=0.6"
+
+# Ways of asking for a page, tried in this order until one gets the whole
+# page. Shops with bot protection serve a stripped page to some clients: a
+# client that claims to be Chrome but does not connect like Chrome is a
+# typical one. The plain client, as the scraper this follows uses, is first.
+PROFILES: dict[str, dict[str, str]] = {
+    # aiohttp's own identity.
+    "plain": {"Accept": _ACCEPT, "Accept-Language": _LANGUAGE},
+    # An honest name for this integration.
+    "app": {
+        "User-Agent": "Mozilla/5.0 (compatible; MealiePlanner/0.1; +https://github.com/ivan1mihaylov/Mealie-Planner)",
+        "Accept": _ACCEPT,
+        "Accept-Language": _LANGUAGE,
+    },
+    # A current Chrome, with the headers Chrome sends for a page.
+    "browser": {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/140.0.0.0 Safari/537.36"
+        ),
+        "Accept": _ACCEPT,
+        "Accept-Language": _LANGUAGE,
+        "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+    },
 }
+
+# The profile that last got a site's whole page, by host. Kept by the
+# service between runs, so a check starts with what worked.
+PREFERRED: dict[str, str] = {}
+
+
+def _host(url: str) -> str:
+    return urlsplit(url).hostname or ""
+
+
+def _order(url: str) -> list[str]:
+    first = PREFERRED.get(_host(url))
+    return ([first] if first in PROFILES else []) + [name for name in PROFILES if name != first]
+
 
 # Shop sites send cookie and security headers longer than aiohttp's default
 # 8 KB limit (lidl.bg does); their own session allows more.
@@ -36,10 +76,10 @@ class SourceError(Exception):
     """A source could not be read; its chain shows the message."""
 
 
-async def fetch_text(session: ClientSession, url: str, *, limit: int = 12 * 1024 * 1024, timeout: int = 30) -> str:
+async def _get(session: ClientSession, url: str, headers: dict[str, str], limit: int, timeout: int) -> str:
     try:
         async with asyncio.timeout(timeout):
-            async with session.get(url, headers=HEADERS) as response:
+            async with session.get(url, headers=headers) as response:
                 if response.status != 200:
                     raise SourceError(f"{url}: HTTP {response.status}")
                 body = await response.content.read(limit + 1)
@@ -48,6 +88,48 @@ async def fetch_text(session: ClientSession, url: str, *, limit: int = 12 * 1024
                 return body.decode(response.charset or "utf-8", errors="replace")
     except (TimeoutError, ClientError) as exc:
         raise SourceError(f"{url}: {_reason(exc)}") from exc
+
+
+async def fetch_text(
+    session: ClientSession,
+    url: str,
+    *,
+    expect: Callable[[str], bool] | None = None,
+    limit: int = 12 * 1024 * 1024,
+    timeout: int = 30,
+) -> str:
+    """A page's text, asked for the way that gets the whole page.
+
+    `expect` says whether a page is the whole one. Profiles are tried in turn
+    until one passes, and the one that did is tried first next time. With
+    none passing, the last page is returned for the parser to report on.
+    """
+    last: str | None = None
+    error: SourceError | None = None
+    for name in _order(url) if expect else _order(url)[:1]:
+        try:
+            html = await _get(session, url, PROFILES[name], limit, timeout)
+        except SourceError as exc:
+            error = exc
+            continue
+        if expect is None or expect(html):
+            PREFERRED[_host(url)] = name
+            return html
+        last = html
+    if last is not None:
+        return last
+    raise error or SourceError(f"{url}: no answer")
+
+
+async def fetch_each_profile(session: ClientSession, url: str) -> list[tuple[str, str | None, str | None]]:
+    """(profile, page, error) for every profile, to see which gets what."""
+    results = []
+    for name, headers in PROFILES.items():
+        try:
+            results.append((name, await _get(session, url, headers, 12 * 1024 * 1024, 30), None))
+        except SourceError as exc:
+            results.append((name, None, str(exc)))
+    return results
 
 
 def describe_page(html: str) -> dict[str, Any]:
@@ -75,7 +157,7 @@ async def fetch_bytes(session: ClientSession, url: str, *, limit: int = 40 * 102
     """Bytes and content type of a brochure page image or PDF."""
     try:
         async with asyncio.timeout(timeout):
-            async with session.get(url, headers=HEADERS) as response:
+            async with session.get(url, headers=PROFILES[_order(url)[0]]) as response:
                 if response.status != 200:
                     raise SourceError(f"{url}: HTTP {response.status}")
                 body = await response.content.read(limit + 1)

@@ -6,6 +6,7 @@ import asyncio
 from datetime import date, timedelta
 import logging
 import os
+from urllib.parse import urlsplit
 from random import randrange
 from typing import Any
 
@@ -53,7 +54,8 @@ from .mealie import MealieClient, PlannerError
 from .offers import OfferBook, OfferIndex
 from .recipes import RecipeIndex
 from .sources import billa, brochures, kaufland, lidl
-from .sources.common import MAX_HEADER, SourceError, describe_page, fetch_text
+from .sources import common as source_common
+from .sources.common import MAX_HEADER, SourceError, describe_page, fetch_each_profile
 from .text import iso
 
 _LOGGER = logging.getLogger(__name__)
@@ -105,6 +107,9 @@ class PlannerService:
 
     async def async_load(self) -> None:
         self.book = OfferBook(await self._offers_store.async_load())
+        # The fetchers keep what worked in PREFERRED; the book stores it.
+        source_common.PREFERRED.update(self.book.profiles)
+        self.book.profiles = source_common.PREFERRED
         self.recipes = RecipeIndex(await self._recipes_store.async_load())
         stored = await self._settings_store.async_load()
         if stored:
@@ -257,7 +262,10 @@ class PlannerService:
             try:
                 found = await fetch(self.shop_session, today)
                 dated = sum(1 for offer in found if offer.get("valid_to"))
-                report[f"{chain}:web"] = {"count": len(found), "with_dates": dated, "samples": found[:3]}
+                base = {KAUFLAND: kaufland.URL, LIDL: lidl.BASE, BILLA: billa.BASE}[chain]
+                report[f"{chain}:web"] = {
+                    "count": len(found), "with_dates": dated, "profile": self._profile(base), "samples": found[:3],
+                }
                 if not found or not dated:
                     report[f"{chain}:web"]["page"] = await self._diagnose(chain)
             except SourceError as exc:
@@ -275,24 +283,39 @@ class PlannerService:
                 }
             except SourceError as exc:
                 report[f"{chain}:brochures"] = {"url": url, "error": str(exc), "page": await self._diagnose(chain, url, f"{chain}-brochures")}
+        # Keep the ways of asking that worked, for the next check.
+        await self._offers_store.async_save(self.book.as_dict())
         return report
 
     async def _diagnose(self, chain: str, url: str | None = None, name: str | None = None) -> dict[str, Any]:
-        """Describe the page a failing source got, and keep a copy to send in."""
+        """Ask for a page every way there is, and keep each answer to send in.
+
+        Shows which way of asking gets the whole page, and which one the
+        source uses now.
+        """
         url = url or {KAUFLAND: kaufland.URL, LIDL: lidl.BASE, BILLA: billa.BASE}[chain]
-        try:
-            html = await fetch_text(self.shop_session, url)
-        except SourceError as exc:
-            return {"url": url, "error": str(exc)}
-        path = self.hass.config.path("mealie_planner_debug", f"{name or chain}.html")
+        pages = await fetch_each_profile(self.shop_session, url)
+        folder = self.hass.config.path("mealie_planner_debug")
 
         def save() -> None:
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "w", encoding="utf-8") as file:
-                file.write(html)
+            os.makedirs(folder, exist_ok=True)
+            for profile, html, _ in pages:
+                if html is not None:
+                    with open(os.path.join(folder, f"{name or chain}-{profile}.html"), "w", encoding="utf-8") as file:
+                        file.write(html)
 
         await self.hass.async_add_executor_job(save)
-        return {"url": url, "saved_to": path, **describe_page(html)}
+        profiles: dict[str, Any] = {}
+        for profile, html, error in pages:
+            if html is None:
+                profiles[profile] = {"error": error}
+            else:
+                profiles[profile] = {"saved_to": os.path.join(folder, f"{name or chain}-{profile}.html"), **describe_page(html)}
+        return {"url": url, "used_profile": self._profile(url), "profiles": profiles}
+
+    @staticmethod
+    def _profile(url: str) -> str | None:
+        return source_common.PREFERRED.get(urlsplit(url).hostname or "")
 
     async def async_close(self) -> None:
         await self.shop_session.close()

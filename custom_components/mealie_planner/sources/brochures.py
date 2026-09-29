@@ -142,7 +142,7 @@ def pdf_brochure(chain: str, url: str, today: date, title: str | None = None) ->
 
 async def find(session: ClientSession, chain: str, page_url: str, today: date) -> list[dict[str, Any]]:
     """The brochures linked from a chain's brochure page."""
-    html = await fetch_text(session, page_url)
+    html = await fetch_text(session, page_url, expect=lambda page: any(find_links(page, page_url).values()))
     links = find_links(html, page_url)
     found: dict[str, dict[str, Any]] = {}
     for ident in links["schwarz"][:6]:
