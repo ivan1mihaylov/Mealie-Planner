@@ -104,8 +104,7 @@ works.
 **What AI is used for, and what it costs:**
 
 - **Brochures:** each brochure is read once, 4 pages per request. The number of
-  pages read is capped by the options (default 40). The Offers tab shows the
-  tokens spent per brochure and in total.
+  pages read is capped by the options (default 80).
 - **Offers the keyword table cannot place:** only their names are sent, 80 per
   request, once per offer.
 - **Planning in AI mode:** one request per "Plan the week", with a short table
