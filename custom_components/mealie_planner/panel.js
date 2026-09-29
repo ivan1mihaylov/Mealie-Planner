@@ -58,7 +58,7 @@ const TEXT = {
     min: "Мин.", max: "Макс.", contains: "Съдържа", excludes: "Не съдържа", tags: "Етикети", categories: "Категории",
     foods: "Храни (със запетая)", addRule: "Ново правило", presets: "Готови правила", meals: "Хранения по дни",
     recent: "Без повторение на рецепти от последните седмици", saveSettings: "Запази настройките", settingsSaved: "Настройките са запазени.",
-    ruleName: "Име", adminOnly: "Настройките се променят от администратор.", close: "Затвори", status: "Източници",
+    ruleName: "Име", moreOptions: "Магазините и зоните им, брошурите за AI, страниците от брошура, списъкът и AI се задават в опциите на интеграцията: Настройки → Устройства и услуги → Mealie Planner → зъбното колело.", openOptions: "Към интеграцията", adminOnly: "Настройките се променят от администратор.", close: "Затвори", status: "Източници",
     brochuresOff: "Четенето на брошури е изключено или няма AI.",
     days: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"],
     daysLong: ["понеделник", "вторник", "сряда", "четвъртък", "петък", "събота", "неделя"],
@@ -97,7 +97,7 @@ const TEXT = {
     min: "Min", max: "Max", contains: "Contains", excludes: "Does not contain", tags: "Tags", categories: "Categories",
     foods: "Foods (comma separated)", addRule: "New rule", presets: "Ready-made rules", meals: "Meals per day",
     recent: "Don't repeat recipes from the last weeks", saveSettings: "Save settings", settingsSaved: "Settings saved.",
-    ruleName: "Name", adminOnly: "Only an administrator can change the settings.", close: "Close", status: "Sources",
+    ruleName: "Name", moreOptions: "Shops and their zones, which brochures AI reads, brochure pages, the list and AI are set in the integration options: Settings → Devices & services → Mealie Planner → the gear.", openOptions: "Open the integration", adminOnly: "Only an administrator can change the settings.", close: "Close", status: "Sources",
     brochuresOff: "Brochure reading is off, or there is no AI.",
     days: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     daysLong: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -804,6 +804,8 @@ class MealiePlannerPanel extends HTMLElement {
       `<input type="checkbox" data-day="${day}" data-meal="${meal}" ${(s.slots[String(day)] || []).includes(meal) ? "checked" : ""} ${admin ? "" : "disabled"}>`).join("")}`).join("");
     return `${lists}
       ${admin ? "" : `<div class="notice">${this.t("adminOnly")}</div>`}
+      <div class="notice">${this.t("moreOptions")}
+        ${admin ? ` <a href="/config/integrations/integration/mealie_planner">${this.t("openOptions")}</a>` : ""}</div>
       <section class="card"><h3>${this.t("rules")}</h3>${rules}
         ${admin ? `<div class="bar"><button class="btn small" data-action="rule-add">${icon("plus", 16)} ${this.t("addRule")}</button>
         <button class="btn small" data-action="rule-presets">${this.t("presets")}</button></div>` : ""}</section>

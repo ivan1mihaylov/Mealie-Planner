@@ -68,7 +68,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         sidebar_icon="mdi:calendar-heart",
         # The version busts the browser cache after an update from HACS.
         module_url=f"{_SCRIPT_URL}?v={integration.version}",
-        config_panel_domain=DOMAIN,
+        # No config_panel_domain: it would make the integration's gear open
+        # this panel instead of the options, which hold the shops and brochures.
     )
     return True
 
