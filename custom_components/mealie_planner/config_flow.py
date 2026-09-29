@@ -22,7 +22,9 @@ from .const import (
     CONF_AI_MODEL,
     CONF_MEALIE_TOKEN,
     CONF_MEALIE_URL,
+    AI_EFFORTS,
     DEFAULT_AI_BASE_URL,
+    DEFAULT_AI_EFFORT,
     DEFAULT_AI_MODEL,
     DEFAULT_BROCHURE_URLS,
     DEFAULT_MAX_PAGES,
@@ -31,6 +33,7 @@ from .const import (
     LISTS_API,
     MODE_AI,
     MODE_LOCAL,
+    OPT_AI_EFFORT,
     OPT_BROCHURE_CHAINS,
     OPT_BROCHURE_URL_PREFIX,
     OPT_LIST_ENTRY,
@@ -123,7 +126,7 @@ class MealiePlannerConfigFlow(ConfigFlow, domain=DOMAIN):
             return data, errors
         if wants_ai:
             try:
-                await AIClient(session, data[CONF_AI_BASE_URL], key, model).check()
+                await AIClient(session, data[CONF_AI_BASE_URL], key, model, effort=DEFAULT_AI_EFFORT).check()
             except PlannerError as exc:
                 errors[CONF_AI_KEY] = "ai_auth" if exc.code == "ai_auth" else "ai_failed"
         return data, errors
@@ -209,6 +212,10 @@ class MealiePlannerOptionsFlow(OptionsFlow):
                 selector.SelectSelectorConfig(
                     options=[selector.SelectOptionDict(value=item["entry_id"], label=item["name"]) for item in lists]
                 )
+            )
+        if has_ai:
+            fields[vol.Required(OPT_AI_EFFORT, default=current.get(OPT_AI_EFFORT, DEFAULT_AI_EFFORT))] = selector.SelectSelector(
+                selector.SelectSelectorConfig(options=list(AI_EFFORTS), translation_key="ai_effort")
             )
         fields[vol.Required(OPT_WEEK_START, default=str(current.get(OPT_WEEK_START, DEFAULT_WEEK_START)))] = selector.SelectSelector(
             selector.SelectSelectorConfig(options=[str(day) for day in range(7)], translation_key="weekday")

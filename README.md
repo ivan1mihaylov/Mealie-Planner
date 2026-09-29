@@ -80,10 +80,26 @@ same kind of settings Mealie uses:
 | --- | --- | --- |
 | AI base URL | `https://api.openai.com/v1` (default) | e.g. `http://<host>:11434/v1` |
 | AI API key | your key | whatever the service wants, often empty |
-| AI model | `gpt-4o-mini` or another model that reads images | a vision model, e.g. `llava` or `qwen2.5vl` |
+| AI model | `gpt-6-luna` (default), or another model that reads images | a vision model, e.g. `llava` or `qwen2.5vl` |
 
 The key is checked with a tiny request before it is saved. It stays in Home
 Assistant's config entry and is never sent to the browser.
+
+**Which model:** `gpt-6-luna` is the default. It is OpenAI's smallest GPT-6
+model, reads images, and costs $0.10 per million tokens in and $0.50 out, which
+is less than `gpt-4o-mini`. An install set up with `gpt-4o-mini` keeps it; to
+switch, open **Reconfigure** and enter `gpt-6-luna`.
+
+**Reasoning effort** (in the options) sets how long a reasoning model such as
+Luna thinks before answering. *Low*, the default, is enough to read prices off
+a page. Higher settings cost more and are slower. *The service's default*
+sends no setting, for services that have none.
+
+The integration adapts to what each service accepts. It learns from the
+service's first refusal whether to use `max_completion_tokens` (current OpenAI
+models) or `max_tokens` (Ollama and older servers), and whether to send a
+temperature, a reasoning effort or a JSON schema, then keeps sending what
+works.
 
 **What AI is used for, and what it costs:**
 
@@ -164,7 +180,10 @@ is yours.
   brochure, and reads it the same way.
 - **Check the sources** on the Offers tab shows what each source finds right
   now, without keeping anything or spending AI. Use it when a shop changes its
-  website.
+  website. When a source fails, gives offers without dates or finds no
+  brochures, it also shows what the page looked like and saves a copy in
+  `/config/mealie_planner_debug/`. Send that file in an issue so the parser
+  can be fixed.
 
 ## Products and the shopping list
 
@@ -210,7 +229,7 @@ setup and options are translated.
   today. If a shop shows "Error" or 0 offers on the Offers tab, run **Check
   the sources**, or `tools/probe.py`, and open an issue with its output.
 - **Brochure reading depends on the AI model.** Small local models miss or
-  misread prices more often than `gpt-4o-mini` and larger models. PDFs are
+  misread prices more often than `gpt-6-luna` and larger models. PDFs are
   sent as files, which OpenAI accepts; other providers may need brochures
   with page images.
 - **Matching is word-based.** "мляко" also matches "кисело мляко" offers; the

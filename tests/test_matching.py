@@ -55,6 +55,8 @@ check("salmon", classify("Филе от сьомга"), ("сьомга", "fish")
 check("tonic is not tuna", classify("Тоник Schweppes")[1], "drinks")
 check("green peppers are not cabbage", classify("Зелени чушки"), ("чушки", "vegetables"))
 check("frozen shrimp are fish", classify("Замразени скариди"), ("скариди", "fish"))
+check("olive oil is not butter", classify("Monini Маслиново масло extra virgin"), ("зехтин", "pantry"))
+check("butter is still butter", classify("Deutsche Markenbutter краве масло"), ("масло", "dairy"))
 check("detergent", classify("Препарат за съдове")[1], "non_food")
 check("shop category settles the rest", classify("Нещо непознато", "Месо и риба")[1], "fish")
 

@@ -80,4 +80,5 @@ async def _async_reload(hass: HomeAssistant, entry: ConfigEntry) -> None:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Remove the panel when the integration is removed or reloaded."""
     async_remove_panel(hass, _PANEL_PATH)
+    await entry.runtime_data.async_close()
     return True

@@ -39,6 +39,7 @@ sys.modules["homeassistant.core"].HomeAssistant = object
 sys.modules["homeassistant.core"].callback = lambda func: func
 sys.modules["homeassistant.config_entries"].ConfigEntry = object
 sys.modules["homeassistant.helpers.aiohttp_client"].async_get_clientsession = lambda hass: None
+sys.modules["homeassistant.helpers.aiohttp_client"].async_create_clientsession = lambda hass, **kwargs: types.SimpleNamespace(settings=kwargs)
 
 
 class _Store:

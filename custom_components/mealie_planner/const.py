@@ -12,7 +12,7 @@ CONF_AI_KEY = "ai_api_key"
 CONF_AI_MODEL = "ai_model"
 
 DEFAULT_AI_BASE_URL = "https://api.openai.com/v1"
-DEFAULT_AI_MODEL = "gpt-4o-mini"
+DEFAULT_AI_MODEL = "gpt-6-luna"
 
 # Behaviour, in the config entry's options.
 OPT_PLANNER_MODE = "planner_mode"
@@ -21,6 +21,7 @@ OPT_BROCHURE_CHAINS = "brochure_chains"
 OPT_LIST_ENTRY = "list_entry"
 OPT_WEEK_START = "week_start"
 OPT_MAX_PAGES = "max_pages"
+OPT_AI_EFFORT = "ai_effort"
 OPT_ZONE_PREFIX = "zone_"
 OPT_BROCHURE_URL_PREFIX = "brochure_url_"
 
@@ -42,6 +43,10 @@ DEFAULT_BROCHURE_URLS = {
 }
 
 DEFAULT_MAX_PAGES = 40
+# How long a reasoning model thinks. Reading prices off a page needs little;
+# "default" sends nothing, for models and services that have no such setting.
+AI_EFFORTS = ("default", "none", "low", "medium", "high")
+DEFAULT_AI_EFFORT = "low"
 DEFAULT_WEEK_START = 0  # Monday
 
 MEAL_TYPES = ("breakfast", "lunch", "dinner", "side", "snack", "dessert", "drink")

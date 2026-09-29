@@ -46,6 +46,7 @@
           "planner_mode": "Plan the week",
           "web_chains": "Read offers from these shops' websites (free)",
           "brochure_chains": "Read these shops' printed brochures with AI (once per brochure)",
+          "ai_effort": "How much the AI model thinks (reasoning effort)",
           "zone_lidl": "Zone of Lidl",
           "zone_kaufland": "Zone of Kaufland",
           "zone_billa": "Zone of Billa",
@@ -75,6 +76,15 @@
         "4": "Friday",
         "5": "Saturday",
         "6": "Sunday"
+      }
+    },
+    "ai_effort": {
+      "options": {
+        "default": "The service's default (send nothing)",
+        "none": "None",
+        "low": "Low: enough to read prices (recommended)",
+        "medium": "Medium",
+        "high": "High: slowest and dearest"
       }
     }
   }
