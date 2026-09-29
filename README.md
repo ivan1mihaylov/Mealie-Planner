@@ -27,7 +27,9 @@ Mealie's meal planner only when you press **Save to Mealie**.
 4. **You adjust it.** You can change, remove, lock or swap any meal, before or
    after saving. The week's products are recalculated after every change.
 5. **You pick the products.** The week's ingredients are grouped by the shop
-   where they are cheapest that week, or listed under "no shop". Open one to
+   where they are cheapest that week. A product on no offer goes under the
+   shop HomeBasket Lists keeps it under, if there is one, and otherwise under
+   "no shop". Open one to
    switch to a similar product from any of the three shops. Nothing is added
    to a list until you tick products and press **Add to list**.
 
@@ -168,6 +170,18 @@ is yours.
 - Each product is matched against the offers valid that week, by the generic
   food ("сьомга") and by the product name. The lowest price per kg or litre
   wins.
+- A product on no offer takes the shop HomeBasket Lists keeps it under. This
+  is for things only one shop sells: put them under that shop on a list once,
+  and they are filed there from then on.
+  - Items on any list count, bought ones included. The same name comes first,
+    then an item whose name contains the ingredient's words, and the most
+    recently changed item wins.
+  - A shop that is not Lidl, Kaufland or Billa, such as a market or a
+    greengrocer's zone, gets a group of its own.
+  - When the lists know no shop for the product, it is added without one, and
+    HomeBasket Lists fills one in from what HomeBasket knows of the product,
+    as it does for anything added without a shop.
+  - Choosing **No shop** on a product by hand always leaves it without one.
 - Tapping a product shows:
   - its offer: price, old price, price per kg, dates, conditions and brochure
     page;
@@ -178,7 +192,8 @@ is yours.
 - Your choices and ticks are kept while the week still needs that product.
 - **Add to list** adds each ticked product to HomeBasket Lists, with:
   - the quantity and unit;
-  - the zone of its shop, or no shop;
+  - the zone of its shop: the offer's, else the one the lists keep it under,
+    else none;
   - a note such as `Lidl · 3,49 € (−30%) до 05.10 · Сьомга на фурна`.
 
 ## Languages

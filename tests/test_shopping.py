@@ -70,6 +70,16 @@ check("other salmon first, then other fish", [(a["name"], a["similarity"]) for a
       [("Сьомга филе", "food"), ("Пъстърва цяла", "category")])
 check("ended offers are not offered", "Домати чери" in [a["name"] for a in shopping.alternatives(items["лимони"], index)], False)
 
+# The shop HomeBasket Lists keeps a product under.
+on_lists = [{"summary": "Магданоз пресен", "store": "zone.pazar", "updated": "2026-09-20"},
+            {"summary": "Лимони", "store": "zone.lidl", "updated": "2026-09-01"}]
+check("same name", shopping.home_shop("лимони", on_lists), "zone.lidl")
+check("all words in the item's name", shopping.home_shop("магданоз", on_lists), "zone.pazar")
+check("nothing for an unknown product", shopping.home_shop("ориз", on_lists), None)
+parsley = [{"key": "магданоз|", "name": "магданоз", "offer": None, "shop": None}]
+shopping.apply_home_shops(parsley, on_lists, {"lidl": "zone.lidl"}, {"zone.pazar": "Пазар Жени"})
+check("a shop that is not a chain keeps its own name", (parsley[0]["shop"], parsley[0]["shop_name"]), ("zone:zone.pazar", "Пазар Жени"))
+
 score, sale = shopping.sale_score(salmon, index)
 check("sale score counts the discount", (score, sale), (1.21, ["сьомга"]))
 
@@ -80,7 +90,14 @@ class FakeLists:
 
     def __init__(self):
         self.calls = []
-        self.lists = [{"entry_id": "L1", "name": "Пазар"}]
+        # Lemons and parsley only ever come from Lidl and the greengrocer's;
+        # the lists keep them under those shops, bought or not.
+        self.lists = [{"entry_id": "L1", "name": "Пазар", "items": [
+            {"summary": "Лимони", "store": "zone.lidl", "status": "completed", "updated": "2026-09-01"},
+            {"summary": "Лимони", "store": "zone.billa", "status": "completed", "updated": "2026-08-01"},
+            {"summary": "Магданоз пресен", "store": "zone.pazar", "status": "needs_action", "updated": "2026-09-20"},
+            {"summary": "Сол", "store": None, "status": "completed"},
+        ]}]
 
     async def async_add_item(self, summary, *, entry_id=None, name=None, **fields):
         self.calls.append((summary, entry_id, fields))
@@ -136,6 +153,10 @@ async def main():
     view = await service.async_move_slot(week, "2026-10-06|dinner", "2026-10-08|dinner")
     check("moved", [s["recipe"]["id"] for s in view["slots"] if s["recipe"]], ["s", "b"])
 
+    # Not on sale: the shop HomeBasket Lists keeps the product under.
+    check("lemons: the most recent shop on the lists", (basket["лимони"]["shop"], basket["лимони"]["home_zone"]), ("lidl", "zone.lidl"))
+    check("on offer: the offer's shop, not the lists'", basket["сьомга"]["home_zone"], None)
+
     # To HomeBasket Lists: each with its shop's zone, or none.
     wanted = [basket["сьомга"], basket["домати"], basket["лимони"], basket["боб"]]
     result = await service.async_add_to_list(wanted)
@@ -147,8 +168,18 @@ async def main():
     check("quantity and unit", (calls["сьомга"]["quantity"], calls["сьомга"]["unit"]), (500.0, "г"))
     check("billa offer goes to zone.billa", calls["домати"]["store"], "zone.billa")
     check("kaufland has no zone: none, and the note says so", ("store" in calls["боб"], "Kaufland" in calls["боб"]["note"]), (False, True))
-    check("no offer: no shop", "store" in calls["лимони"], False)
-    check("shops Lists guessed are cleared", sorted(uid for uid, fields in runtime.updates if fields == {"store": None}), ["u3", "u4"])
+    check("no offer: the shop from the lists", calls["лимони"]["store"], "zone.lidl")
+    check("only the zoneless offer's guessed shop is cleared", [uid for uid, fields in runtime.updates], ["u4"])
+
+    # "No shop" picked by hand stays no shop, whatever the lists say.
+    view = await service.async_choose(week, basket["лимони"]["key"], "none")
+    lemons = {i["name"]: i for i in view["basket"]}["лимони"]
+    check("hand-picked no shop wins over the lists", (lemons["shop"], lemons["home_zone"]), (None, None))
+    lists.calls.clear()
+    runtime.updates.clear()
+    await service.async_add_to_list([lemons])
+    check("added without a shop", "store" in lists.calls[0][2], False)
+    check("and the guess Lists made is cleared", runtime.updates, [("u1", {"store": None})])
 
 
 asyncio.run(main())

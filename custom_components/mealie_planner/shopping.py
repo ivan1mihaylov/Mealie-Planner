@@ -11,7 +11,7 @@ from typing import Any
 
 from .classify import classify
 from .offers import OfferIndex
-from .text import normalize, overlap, stems
+from .text import contains_stems, normalize, overlap, stems
 
 NO_SHOP = "none"
 _WATER = {"вода", "топла вода", "студена вода", "гореща вода", "хладка вода", "water"}
@@ -92,6 +92,59 @@ def basket(
             }
         )
     return result
+
+
+def home_shop(name: str, list_items: list[dict[str, Any]]) -> str | None:
+    """The shop HomeBasket Lists keeps a product under, when it is on no offer.
+
+    Products bought in one shop only ("only Lidl has it") are put under that
+    shop on the lists. The same name wins; otherwise an item whose name has
+    every word of the ingredient. The most recently changed one counts.
+    """
+    wanted = normalize(name)
+    words = stems(name)
+    if not words:
+        return None
+    same: list[dict[str, Any]] = []
+    close: list[dict[str, Any]] = []
+    for item in list_items:
+        if not item.get("store"):
+            continue
+        summary = item.get("summary") or ""
+        if normalize(summary) == wanted:
+            same.append(item)
+        elif contains_stems(words, stems(summary)):
+            close.append(item)
+    for found in (same, close):
+        if found:
+            return max(found, key=lambda item: item.get("updated") or item.get("created") or "")["store"]
+    return None
+
+
+def apply_home_shops(
+    items: list[dict[str, Any]],
+    list_items: list[dict[str, Any]],
+    chain_zones: dict[str, str | None],
+    zone_names: dict[str, str],
+    overrides: dict[str, str] | None = None,
+) -> None:
+    """Give products on no offer the shop HomeBasket Lists keeps them under.
+
+    A product the user set to "no shop" by hand stays without one. A zone
+    that is one of the chains' zones files the product under that chain.
+    """
+    overrides = overrides or {}
+    by_zone = {zone: chain for chain, zone in chain_zones.items() if zone}
+    for item in items:
+        item["home_zone"] = None
+        if item.get("offer") or overrides.get(item["key"]) == NO_SHOP:
+            continue
+        zone = home_shop(item["name"], list_items)
+        if zone is None:
+            continue
+        item["home_zone"] = zone
+        item["shop"] = by_zone.get(zone) or f"zone:{zone}"
+        item["shop_name"] = zone_names.get(zone) or zone.split(".", 1)[-1].replace("_", " ")
 
 
 def prune(state: dict[str, Any], items: list[dict[str, Any]]) -> None:

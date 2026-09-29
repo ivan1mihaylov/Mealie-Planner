@@ -42,7 +42,7 @@ const TEXT = {
     basketEmpty: "Планът още няма рецепти, затова няма и продукти.", noShop: "Без магазин",
     selectSale: "Избери всички в промоция", selectNone: "Изчисти избора", addToList: "Добави в списъка ({n})",
     added: "Добавени {n} в списъка.", listMissing: "Инсталирай HomeBasket Lists, за да добавяш в списък.",
-    listPick: "Списък", recipesFor: "за", byHand: "избрано ръчно", matches: "{n} подходящи",
+    listPick: "Списък", homeShop: "Не е в промоция; купува се тук според HomeBasket Lists", recipesFor: "за", byHand: "избрано ръчно", matches: "{n} подходящи",
     similar: "Подобни продукти", sim_food: "Същата храна", sim_name: "Подобно име", sim_category: "Същия вид",
     choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", until: "до",
     unit_kg: "кг", unit_l: "л", unit_pc: "бр.", page: "стр.", unitPrice: "{price} €/{unit}", estimate: "Сума на избраните в промоция: {sum} €",
@@ -81,7 +81,7 @@ const TEXT = {
     basketEmpty: "The plan has no recipes yet, so there are no products.", noShop: "No shop",
     selectSale: "Select all on sale", selectNone: "Clear selection", addToList: "Add to list ({n})",
     added: "{n} added to the list.", listMissing: "Install HomeBasket Lists to add to a list.",
-    listPick: "List", recipesFor: "for", byHand: "picked by hand", matches: "{n} matching",
+    listPick: "List", homeShop: "Not on sale; bought here according to HomeBasket Lists", recipesFor: "for", byHand: "picked by hand", matches: "{n} matching",
     similar: "Similar products", sim_food: "Same food", sim_name: "Similar name", sim_category: "Same kind",
     choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", until: "until",
     unit_kg: "kg", unit_l: "l", unit_pc: "pc", page: "p.", unitPrice: "{price} €/{unit}", estimate: "Selected items on sale: {sum} €",
@@ -566,8 +566,17 @@ class MealiePlannerPanel extends HTMLElement {
     const lists = view.lists || { available: false, lists: [] };
     const checked = items.filter((item) => item.checked);
     const sum = checked.reduce((total, item) => total + (item.offer ? item.offer.price : 0), 0);
-    const groups = { lidl: [], kaufland: [], billa: [], none: [] };
-    for (const item of items) groups[item.shop || "none"].push(item);
+    // The three shops first, then shops HomeBasket Lists keeps products under, then none.
+    const groups = { lidl: [], kaufland: [], billa: [] };
+    const names = {};
+    for (const item of items) {
+      const shop = item.shop || "none";
+      if (item.shop_name) names[shop] = item.shop_name;
+      (groups[shop] = groups[shop] || []).push(item);
+    }
+    const none = groups.none || [];
+    delete groups.none;
+    groups.none = none;
     const listSelect = lists.available && lists.lists.length > 1
       ? `<select id="listpick">${lists.lists.map((list) => `<option value="${esc(list.entry_id)}" ${(this._listEntry || lists.entry_id) === list.entry_id ? "selected" : ""}>${esc(list.name)}</option>`).join("")}</select>` : "";
     const html = [`${nav}
@@ -580,7 +589,7 @@ class MealiePlannerPanel extends HTMLElement {
     for (const [chain, members] of Object.entries(groups)) {
       if (!members.length) continue;
       const color = CHAIN_COLORS[chain] || "var(--mp-muted)";
-      html.push(`<section class="group"><h3><span class="dot" style="background:${color}"></span>${esc(CHAINS[chain] || this.t("noShop"))}
+      html.push(`<section class="group"><h3><span class="dot" style="background:${color}"></span>${esc(CHAINS[chain] || names[chain] || this.t("noShop"))}
         <span class="muted">(${members.length})</span></h3>${members.map((item) => this._itemHtml(item)).join("")}</section>`);
     }
     return html.join("");
@@ -602,7 +611,8 @@ class MealiePlannerPanel extends HTMLElement {
   _itemHtml(item) {
     const offer = item.offer;
     const sub = [this._amount(item), item.recipes.length ? `${this.t("recipesFor")} ${item.recipes.join(", ")}` : ""].filter(Boolean).join(" · ");
-    const offerLine = offer ? `${offer.name}${offer.quantity ? " · " + offer.quantity : ""}${item.picked ? " · " + this.t("byHand") : ""}` : (item.picked ? this.t("byHand") : "");
+    const offerLine = offer ? `${offer.name}${offer.quantity ? " · " + offer.quantity : ""}${item.picked ? " · " + this.t("byHand") : ""}`
+      : item.home_zone ? this.t("homeShop") : (item.picked ? this.t("byHand") : "");
     return `<div class="item" data-action="details" data-key="${esc(item.key)}">
       <input type="checkbox" data-action="tick" data-key="${esc(item.key)}" ${item.checked ? "checked" : ""} aria-label="${esc(item.name)}">
       <div class="main"><div class="title">${esc(item.name)}</div>

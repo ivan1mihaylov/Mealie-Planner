@@ -559,8 +559,31 @@ class PlannerService:
         recipes = [self.recipes.by_id(slot.get("recipe")) for slot in draft["slots"].values()]
         recipes = [recipe for recipe in recipes if recipe]
         items = shopping.basket(recipes, index, draft.get("overrides"), set(draft.get("checked") or []))
+        list_items = self._list_items()
+        zones = {item["store"] for item in list_items if item.get("store")}
+        shopping.apply_home_shops(
+            items,
+            list_items,
+            {chain: self.zone(chain) for chain in CHAINS},
+            {zone: self._zone_name(zone) for zone in zones},
+            draft.get("overrides"),
+        )
         shopping.prune(draft, items)
         return items
+
+    def _list_items(self) -> list[dict[str, Any]]:
+        """Every item on every HomeBasket Lists list, bought ones included."""
+        api = self._lists_api()
+        if api is None:
+            return []
+        return [item for board in api.lists for item in board.get("items") or []]
+
+    def _zone_name(self, zone: str) -> str:
+        states = getattr(self.hass, "states", None)
+        state = states.get(zone) if states is not None else None
+        if state is not None and state.attributes.get("friendly_name"):
+            return str(state.attributes["friendly_name"])
+        return zone.split(".", 1)[-1].replace("_", " ").title()
 
     async def async_alternatives(self, start: date, key: str) -> list[dict[str, Any]]:
         draft = self._draft(start)
@@ -615,7 +638,11 @@ class PlannerService:
         for item in items:
             offer = item.get("offer")
             chain = offer.get("chain") if offer else None
-            zone = self.zone(chain)
+            # On offer: that shop. Otherwise the shop the lists keep it under.
+            zone = self.zone(chain) if offer else item.get("home_zone")
+            # "No shop" picked by hand, or an offer from a shop with no zone
+            # (the note names it): nothing else should fill the shop in.
+            no_shop = (item.get("picked") and not offer) or (offer and not zone)
             fields: dict[str, Any] = {"type": "food"}
             if item.get("quantity"):
                 fields["quantity"] = float(item["quantity"])
@@ -635,7 +662,9 @@ class PlannerService:
             if result is None:
                 raise PlannerError("Изберете списък в настройките на Mealie Planner.", "no_list")
             added += 1
-            if not zone and result.get("outcome") == "added":
+            # Without a shop, HomeBasket Lists picks one from what HomeBasket
+            # knows of the product, which is kept unless said otherwise above.
+            if no_shop and result.get("outcome") == "added":
                 await self._clear_guessed_store(result)
         return {"added": added}
 
