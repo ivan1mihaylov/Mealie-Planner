@@ -184,6 +184,7 @@ class MealiePlannerPanel extends HTMLElement {
     this._filters = { text: "", chains: [], categories: [], date: "week", discount: 0, sort: "discount", limit: 60 };
     try { Object.assign(this._filters, JSON.parse(storage("mealie-planner-filters") || "{}"), { text: "", limit: 60 }); } catch (error) { /* ignore */ }
     this._moving = null;
+    this._openSources = new Set();
     const root = this.attachShadow({ mode: "open" });
     root.innerHTML = `
       <style>
@@ -290,11 +291,15 @@ class MealiePlannerPanel extends HTMLElement {
         .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:12px }
         .filters input[type=search], select, .field input, .field textarea { background:var(--mp-card); border:1px solid var(--mp-line); border-radius:12px; padding:8px 12px }
         .filters input[type=search] { flex:1; min-width:180px }
-        .sources { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; margin-bottom:14px }
+        .sources { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:10px; margin-bottom:14px; align-items:start }
         .source { background:var(--mp-card); border:1px solid var(--mp-line); border-radius:14px; padding:10px 12px; font-size:13px; display:flex; flex-direction:column; gap:4px }
         .source h4 { margin:0; display:flex; align-items:center; gap:6px; font-size:14px }
         .source .err { color:var(--mp-error) }
         .source .line { display:flex; gap:6px; align-items:center; justify-content:space-between }
+        .source .head { all:unset; cursor:pointer; display:flex; align-items:center; gap:6px; font-size:14px; font-weight:600 }
+        .source .head:focus-visible { outline:2px solid var(--mp-accent); outline-offset:2px; border-radius:6px }
+        .source .head .total { margin-left:auto; font-weight:500 }
+        .source .body { display:flex; flex-direction:column; gap:4px; margin-top:4px }
         .muted { color:var(--mp-muted); font-size:13px }
         .card { background:var(--mp-card); border:1px solid var(--mp-line); border-radius:18px; padding:14px 16px; margin-bottom:14px }
         .card h3 { margin:0 0 10px; font-size:16px }
@@ -733,9 +738,15 @@ class MealiePlannerPanel extends HTMLElement {
           ${source.error ? `<span class="err" title="${esc(source.error)}">${this.t("error")}</span>` : `<span>${esc(this.t("count", { n: source.count ?? 0 }))}</span>`}
           ${admin && source.kind === "brochure" ? `<button class="btn small" data-action="rescan" data-source="${esc(source.id)}" title="${this.t("rescan")}">${icon("refresh", 14)}</button>` : ""}</div>`;
       }).join("");
-      return `<div class="source"><h4><span class="dot" style="background:${CHAIN_COLORS[chain]}"></span>${CHAINS[chain]}
-        <span class="muted">${config.web ? this.t("web") : ""}${config.web && config.brochures ? " + " : ""}${config.brochures ? this.t("brochure") : ""}</span></h4>
-        ${lines || `<div class="muted">—</div>`}</div>`;
+      const open = this._openSources.has(chain);
+      const total = data.offers.filter((offer) => offer.chain === chain).length;
+      const failed = sources.some((source) => source.error);
+      return `<div class="source"><button class="head" data-action="togglesource" data-chain="${chain}" aria-expanded="${open}">
+          <span class="dot" style="background:${CHAIN_COLORS[chain]}"></span>${CHAINS[chain]}
+          ${failed ? `<span class="err">${this.t("error")}</span>` : ""}
+          <span class="total muted">${esc(this.t("count", { n: total }))}</span>${icon(open ? "up" : "down", 18)}</button>
+        ${open ? `<div class="body"><span class="muted">${config.web ? this.t("web") : ""}${config.web && config.brochures ? " + " : ""}${config.brochures ? this.t("brochure") : ""}</span>
+        ${lines || `<div class="muted">—</div>`}</div>` : ""}</div>`;
     }).join("");
     return cards;
   }
@@ -981,6 +992,12 @@ class MealiePlannerPanel extends HTMLElement {
         if (at >= 0) list.splice(at, 1); else list.push(value);
         this._filters.limit = 60;
         this._saveFilters();
+        this._render();
+        break;
+      }
+      case "togglesource": {
+        const chain = target.dataset.chain;
+        if (this._openSources.has(chain)) this._openSources.delete(chain); else this._openSources.add(chain);
         this._render();
         break;
       }

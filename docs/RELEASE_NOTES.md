@@ -1,1 +1,1 @@
-- **No more AI token counts.** The Промоции tab no longer shows how many AI tokens were spent, neither in total nor per brochure.
+- **Tidier sources.** In the Промоции tab, the Lidl, Kaufland and Billa cards start folded and show only the chain and how many of its offers are current (and "Грешка" if a source failed). Tap a card to see its website and brochure lines with their counts; tap again to fold it.
