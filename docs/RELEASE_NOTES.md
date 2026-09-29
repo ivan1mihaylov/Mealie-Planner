@@ -1,1 +1,1 @@
-- **Tap a picture to see it large.** An offer's picture opens in a pop-up, as large as the screen allows, in the Промоции tab, in a product's details and among the similar products. For a picture cut out of a brochure, "Цялата страница" shows the whole brochure page it came from, and "Само продукта" goes back. Tap outside the picture, on it, or the cross to close.
+- **No more AI token counts.** The Промоции tab no longer shows how many AI tokens were spent, neither in total nor per brochure.

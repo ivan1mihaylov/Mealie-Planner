@@ -47,7 +47,7 @@ const TEXT = {
     choose: "Избери", auto: "Автоматично", noOffer: "Не е в промоция", validity: "Валидно", noDates: "без дата", zoomPage: "Цялата страница", zoomProduct: "Само продукта", until: "до",
     unit_kg: "кг", unit_l: "л", unit_pc: "бр.", page: "стр.", unitPrice: "{price} €/{unit}", estimate: "Сума на избраните в промоция: {sum} €",
     refresh: "Провери за нови", refreshing: "Проверява…", rescan: "Прочети отново", addBrochure: "Добави брошура",
-    probe: "Проверка на източниците", tokens: "AI: {p} + {c} токена", web: "Сайт", brochure: "Брошура",
+    probe: "Проверка на източниците", web: "Сайт", brochure: "Брошура",
     count: "{n} промоции", error: "Грешка", lastCheck: "Проверено", filterText: "Търси продукт…",
     all: "Всички", today: "Валидни днес", planWeek: "В планираната седмица", anyDate: "Всички дати",
     minDiscount: "Отстъпка", sortBy: "Подреди", sort_discount: "Най-голяма отстъпка", sort_price: "Най-ниска цена",
@@ -86,7 +86,7 @@ const TEXT = {
     choose: "Choose", auto: "Automatic", noOffer: "Not on sale", validity: "Valid", noDates: "no dates", zoomPage: "Whole page", zoomProduct: "Just the product", until: "until",
     unit_kg: "kg", unit_l: "l", unit_pc: "pc", page: "p.", unitPrice: "{price} €/{unit}", estimate: "Selected items on sale: {sum} €",
     refresh: "Check for new", refreshing: "Checking…", rescan: "Read again", addBrochure: "Add brochure",
-    probe: "Check the sources", tokens: "AI: {p} + {c} tokens", web: "Website", brochure: "Brochure",
+    probe: "Check the sources", web: "Website", brochure: "Brochure",
     count: "{n} offers", error: "Error", lastCheck: "Checked", filterText: "Search products…",
     all: "All", today: "Valid today", planWeek: "In the planned week", anyDate: "Any date",
     minDiscount: "Discount", sortBy: "Sort", sort_discount: "Biggest discount", sort_price: "Lowest price",
@@ -727,11 +727,10 @@ class MealiePlannerPanel extends HTMLElement {
       const sources = (data.sources[chain] || []).slice().sort((a, b) => (a.kind === "web" ? -1 : 1));
       const config = data.chains[chain] || {};
       const lines = sources.map((source) => {
-        const tokens = source.tokens && (source.tokens.prompt || source.tokens.completion) ? ` · ${this.t("tokens", { p: source.tokens.prompt, c: source.tokens.completion })}` : "";
         const dates = source.valid_from || source.valid_to ? ` · ${short(source.valid_from)}–${short(source.valid_to)}` : "";
         const label = source.kind === "web" ? this.t("web") : `${this.t("brochure")}: ${source.title || ""}`;
         return `<div class="line"><span>${esc(label)}${esc(dates)}</span>
-          ${source.error ? `<span class="err" title="${esc(source.error)}">${this.t("error")}</span>` : `<span>${esc(this.t("count", { n: source.count ?? 0 }))}${esc(tokens)}</span>`}
+          ${source.error ? `<span class="err" title="${esc(source.error)}">${this.t("error")}</span>` : `<span>${esc(this.t("count", { n: source.count ?? 0 }))}</span>`}
           ${admin && source.kind === "brochure" ? `<button class="btn small" data-action="rescan" data-source="${esc(source.id)}" title="${this.t("rescan")}">${icon("refresh", 14)}</button>` : ""}</div>`;
       }).join("");
       return `<div class="source"><h4><span class="dot" style="background:${CHAIN_COLORS[chain]}"></span>${CHAINS[chain]}
@@ -748,14 +747,12 @@ class MealiePlannerPanel extends HTMLElement {
     const admin = this._state.admin;
     const list = this._filtered();
     const shown = list.slice(0, f.limit);
-    const usage = data.usage || {};
     const chainChips = Object.entries(CHAINS).map(([key, name]) => `<button class="chip" data-action="fchain" data-chain="${key}" aria-pressed="${f.chains.includes(key)}">${name}</button>`).join("");
     const present = new Set(data.offers.map((offer) => offer.category || "other_food"));
     const catChips = CATEGORIES.filter((key) => present.has(key)).map((key) => `<button class="chip" data-action="fcat" data-cat="${key}" aria-pressed="${f.categories.includes(key)}">${this.t("cat_" + key)}</button>`).join("");
     const option = (value, label, current) => `<option value="${value}" ${String(current) === String(value) ? "selected" : ""}>${esc(label)}</option>`;
     return `
       <div class="bar"><h3 style="margin:0">${this.t("status")}</h3><span class="grow"></span>
-        <span class="muted">${esc(this.t("tokens", { p: usage.prompt || 0, c: usage.completion || 0 }))}</span>
         ${admin ? `<button class="btn small" data-action="probe">${this.t("probe")}</button>` : ""}
         ${admin && this._state.ai ? `<button class="btn small" data-action="addbrochure">${icon("plus", 16)} ${this.t("addBrochure")}</button>` : ""}
         ${admin ? `<button class="btn primary small" data-action="refresh" ${data.refreshing ? "disabled" : ""}>${data.refreshing ? `<span class="spinner"></span> ${this.t("refreshing")}` : `${icon("refresh", 16)} ${this.t("refresh")}`}</button>` : ""}

@@ -384,7 +384,6 @@ class PlannerService:
         return {
             "offers": sorted(self.book.current(today), key=lambda offer: (offer["chain"], offer["name"])),
             "sources": self.book.status(),
-            "usage": self.book.usage,
             "refreshing": self.refreshing,
             "last_refresh": self.last_refresh,
             "chains": {chain: {"web": chain in self.web_chains, "brochures": chain in self.brochure_chains, "zone": self.zone(chain)} for chain in CHAINS},

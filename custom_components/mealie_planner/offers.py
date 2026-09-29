@@ -170,7 +170,8 @@ class OfferBook:
     def status(self) -> dict[str, list[dict[str, Any]]]:
         by_chain: dict[str, list[dict[str, Any]]] = {}
         for source_id, source in self.sources.items():
-            by_chain.setdefault(source.get("chain", "?"), []).append({"id": source_id, **source})
+            shown = {key: value for key, value in source.items() if key != "tokens"}
+            by_chain.setdefault(source.get("chain", "?"), []).append({"id": source_id, **shown})
         return by_chain
 
 
