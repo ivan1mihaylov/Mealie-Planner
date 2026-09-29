@@ -54,8 +54,11 @@
           "week_start": "Седмицата започва в",
           "max_pages": "Най-много страници от брошура за AI",
           "brochure_url_lidl": "Страница с брошурата на Lidl",
+          "brochure_title_lidl": "Брошура на Lidl за четене: текст от заглавието (* за всички)",
           "brochure_url_kaufland": "Страница с брошурата на Kaufland",
-          "brochure_url_billa": "Страница с брошурата на Billa"
+          "brochure_title_kaufland": "Брошура на Kaufland за четене: текст от заглавието (* за всички)",
+          "brochure_url_billa": "Страница с брошурата на Billa",
+          "brochure_title_billa": "Брошура на Billa за четене: текст от заглавието (* за всички)"
         }
       }
     }

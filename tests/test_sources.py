@@ -339,6 +339,13 @@ check("brochure: viewers inside frames are looked into", brochures.embedded_page
     '<iframe data-src="/embed/brochure"></iframe>', "https://www.billa.bg/promocii"),
     ["https://viewer.example/billa/week", "https://www.billa.bg/embed/brochure"])
 
+# Which brochures AI reads: Lidl's weekly one, not the months-long others.
+LIDL_BROCHURES = [{"title": "Кошница с грижа"}, {"title": "Заслужава си"}, {"title": "Седмични предложения"}]
+check("brochure: only the titled one is read", brochures.titled(LIDL_BROCHURES, "Седмични предложения"), [{"title": "Седмични предложения"}])
+check("brochure: part of the title, any case", len(brochures.titled(LIDL_BROCHURES, "седмични")), 1)
+check("brochure: * reads them all", len(brochures.titled(LIDL_BROCHURES, "*")), 3)
+check("brochure: no title reads them all", len(brochures.titled(LIDL_BROCHURES, "")), 3)
+
 # --- Brochures ------------------------------------------------------------------
 links = brochures.find_links(
     """<a href="/l/bg/broshura/ot-29-09-do-05-10/view/flyer/page/1">Брошура</a>

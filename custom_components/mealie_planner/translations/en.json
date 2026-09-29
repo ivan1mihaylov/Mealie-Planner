@@ -54,8 +54,11 @@
           "week_start": "The week starts on",
           "max_pages": "Most brochure pages read by AI",
           "brochure_url_lidl": "Brochure page of Lidl",
+          "brochure_title_lidl": "Brochure title of Lidl to read (* for all)",
           "brochure_url_kaufland": "Brochure page of Kaufland",
-          "brochure_url_billa": "Brochure page of Billa"
+          "brochure_title_kaufland": "Brochure title of Kaufland to read (* for all)",
+          "brochure_url_billa": "Brochure page of Billa",
+          "brochure_title_billa": "Brochure title of Billa to read (* for all)"
         }
       }
     }

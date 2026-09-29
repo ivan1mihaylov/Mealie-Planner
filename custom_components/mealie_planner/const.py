@@ -24,6 +24,7 @@ OPT_MAX_PAGES = "max_pages"
 OPT_AI_EFFORT = "ai_effort"
 OPT_ZONE_PREFIX = "zone_"
 OPT_BROCHURE_URL_PREFIX = "brochure_url_"
+OPT_BROCHURE_TITLE_PREFIX = "brochure_title_"
 
 MODE_LOCAL = "local"
 MODE_AI = "ai"
@@ -42,7 +43,17 @@ DEFAULT_BROCHURE_URLS = {
     BILLA: "https://www.billa.bg/promocii/sedmichna-broshura",
 }
 
-DEFAULT_MAX_PAGES = 40
+# Which of a chain's brochures AI reads: those whose title has this text,
+# or all of them for "*" or empty. Lidl's weekly offers are its "Седмични
+# предложения" brochure; its others run for months.
+DEFAULT_BROCHURE_TITLES = {
+    LIDL: "Седмични предложения",
+    KAUFLAND: "",
+    BILLA: "",
+}
+
+# Lidl's weekly brochure has about 70 pages.
+DEFAULT_MAX_PAGES = 80
 # How long a reasoning model thinks. Reading prices off a page needs little;
 # "default" sends nothing, for models and services that have no such setting.
 AI_EFFORTS = ("default", "none", "low", "medium", "high")

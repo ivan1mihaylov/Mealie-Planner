@@ -26,6 +26,7 @@ from .const import (
     DEFAULT_AI_BASE_URL,
     DEFAULT_AI_EFFORT,
     DEFAULT_AI_MODEL,
+    DEFAULT_BROCHURE_TITLES,
     DEFAULT_BROCHURE_URLS,
     DEFAULT_MAX_PAGES,
     DEFAULT_WEEK_START,
@@ -35,6 +36,7 @@ from .const import (
     MODE_LOCAL,
     OPT_AI_EFFORT,
     OPT_BROCHURE_CHAINS,
+    OPT_BROCHURE_TITLE_PREFIX,
     OPT_BROCHURE_URL_PREFIX,
     OPT_LIST_ENTRY,
     OPT_MAX_PAGES,
@@ -226,4 +228,7 @@ class MealiePlannerOptionsFlow(OptionsFlow):
         for chain in CHAINS:
             key = f"{OPT_BROCHURE_URL_PREFIX}{chain}"
             fields[vol.Optional(key, description={"suggested_value": current.get(key) or DEFAULT_BROCHURE_URLS[chain]})] = str
+            key = f"{OPT_BROCHURE_TITLE_PREFIX}{chain}"
+            title = current[key] if key in current else DEFAULT_BROCHURE_TITLES[chain]
+            fields[vol.Optional(key, description={"suggested_value": title})] = str
         return self.async_show_form(step_id="init", data_schema=vol.Schema(fields))

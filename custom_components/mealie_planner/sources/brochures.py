@@ -22,7 +22,7 @@ from urllib.parse import urljoin
 
 from aiohttp import ClientSession
 
-from ..text import iso, parse_dates
+from ..text import iso, normalize, parse_dates
 from .common import SourceError, fetch_text
 from .html import parse
 
@@ -152,6 +152,14 @@ def pdf_brochure(chain: str, url: str, today: date, title: str | None = None) ->
         "pages": [],
         "pdf": url,
     }
+
+
+def titled(brochures: list[dict[str, Any]], title: str | None) -> list[dict[str, Any]]:
+    """The brochures whose title has the given text, or all of them without one ("*")."""
+    wanted = normalize(title)
+    if not wanted or (title or "").strip() == "*":
+        return brochures
+    return [brochure for brochure in brochures if wanted in normalize(brochure.get("title"))]
 
 
 async def find(session: ClientSession, chain: str, page_url: str, today: date) -> list[dict[str, Any]]:
