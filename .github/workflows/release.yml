@@ -1,0 +1,31 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version without v (for example 0.1.0)
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check manifest version
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          manifest=$(python3 -c "import json; print(json.load(open('custom_components/mealie_planner/manifest.json'))['version'])")
+          test "$manifest" = "$RELEASE_VERSION"
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v$RELEASE_VERSION"; then
+            echo "Tag already exists" >&2
+            exit 1
+          fi
+          gh release create "v$RELEASE_VERSION" --title "v$RELEASE_VERSION" --notes-file docs/RELEASE_NOTES.md --latest

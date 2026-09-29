@@ -1,0 +1,42 @@
+name: Validate
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+permissions: {}
+jobs:
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          # Repository description/topics are GitHub settings and can be added
+          # before submitting to the default HACS catalog.
+          ignore: description topics
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: python -m compileall -q custom_components tools
+      - run: python -m json.tool hacs.json > /dev/null
+      - run: node --check custom_components/mealie_planner/panel.js
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      # The tests stub Home Assistant and need nothing installed.
+      - run: for test in tests/test_*.py; do python "$test" || exit 1; done
