@@ -304,6 +304,41 @@ async def lidl_dates():
 
 asyncio.run(lidl_dates())
 
+# Lidl's real front page: its links show no dates; the weekly pages and their
+# dates are only in the data inside its scripts.
+DATA_FRONT = """<html><a href="/c/lidl-plus/s10021179">Lidl Plus</a><script>window.__DATA__ = {"stage": [
+{"title": "Седмични предложения", "period": "28.09. - 04.10.", "href": "/c/sedmichni-predlozheniya/a10070000"},
+{"title": "Супер събота", "period": "03.10. - 03.10.", "href": "/c/super-sabota/a10071111"}]};</script>
+<a href="/c/kontakti/s1">Контакти</a></html>"""
+DATA_WEEK = """<title>Седмични предложения</title><script>{"validity":"28.09. - 04.10."}</script>
+<div data-selector="PRODUCT" canonicalurl="/p/krusi/p1"></div>"""
+PLUS_PAGE = """<title>Lidl Plus</title><div data-selector="PRODUCT" canonicalurl="/p/krenvirsi/p2"></div>"""
+check("lidl: weekly pages found in the page's data", lidl.parse_offer_pages(DATA_FRONT, TODAY), {
+    "https://www.lidl.bg/c/lidl-plus/s10021179": [],
+    "https://www.lidl.bg/c/sedmichni-predlozheniya/a10070000": [date(2026, 9, 28), date(2026, 10, 4)],
+    "https://www.lidl.bg/c/super-sabota/a10071111": [date(2026, 10, 3), date(2026, 10, 3)],
+})
+
+
+async def lidl_data_dates():
+    common.PREFERRED.clear()
+    site = Pages({
+        "https://www.lidl.bg": DATA_FRONT,
+        "https://www.lidl.bg/c/sedmichni-predlozheniya/a10070000": DATA_WEEK,
+        "https://www.lidl.bg/c/lidl-plus/s10021179": PLUS_PAGE,
+        "https://www.lidl.bg/p/krusi/p1": PEARS,
+        "https://www.lidl.bg/p/krenvirsi/p2": SAUSAGES,
+    })
+    found = {o["name"]: o for o in await lidl.fetch(site, TODAY)}
+    check("lidl: products of the weekly page found", sorted(found), ["Кренвирши", "Круши"])
+    check("lidl: dates from the page's data", found["Круши"]["valid_to"], "2026-10-04")
+    check("lidl: a page without dates takes the front page's current week",
+          (found["Кренвирши"]["valid_from"], found["Кренвирши"]["valid_to"]), ("2026-09-28", "2026-10-04"))
+    common.PREFERRED.clear()
+
+
+asyncio.run(lidl_data_dates())
+
 check("brochure: viewers inside frames are looked into", brochures.embedded_pages(
     '<iframe src="https://viewer.example/billa/week"></iframe><iframe src="https://www.google.com/recaptcha/x"></iframe>'
     '<iframe data-src="/embed/brochure"></iframe>', "https://www.billa.bg/promocii"),

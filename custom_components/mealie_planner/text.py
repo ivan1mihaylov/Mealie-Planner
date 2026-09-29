@@ -196,13 +196,26 @@ _RANGE = re.compile(
 )
 
 
-def first_range(text: str | None, today: date) -> list[date]:
-    """The first "28.09. - 04.10." style range in a text that is a real one."""
+def date_ranges(text: str | None, today: date) -> list[tuple[int, list[date]]]:
+    """Every real "28.09. - 04.10." style range in a text, with where it starts."""
+    found = []
     for match in _RANGE.finditer(str(text or "")):
         dates = parse_dates(f"{match.group(1)} {match.group(2)}", today)
         if len(dates) == 2 and 0 <= (dates[1] - dates[0]).days <= 62:
+            found.append((match.start(), dates))
+    return found
+
+
+def first_range(text: str | None, today: date) -> list[date]:
+    """The range a text is about: the one running today, else the next, else the first."""
+    ranges = [dates for _, dates in date_ranges(text, today)]
+    if not ranges:
+        return []
+    for dates in ranges:
+        if dates[0] <= today <= dates[1]:
             return dates
-    return []
+    upcoming = [dates for dates in ranges if dates[0] > today]
+    return min(upcoming) if upcoming else ranges[0]
 
 
 def iso(value: date | str | None) -> str | None:

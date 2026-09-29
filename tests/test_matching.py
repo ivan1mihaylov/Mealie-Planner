@@ -40,6 +40,8 @@ check("unit price per kg", unit_price(2.0, "400 г"), (5.0, "kg"))
 check("за kg is one kilogram", parse_quantity("за kg"), (1.0, "kg"))
 check("price per kg for loose fruit", unit_price(1.89, "за kg"), (1.89, "kg"))
 check("grams in Latin letters", parse_quantity("2 x 90 g/опаковка"), (0.18, "kg"))
+check("the range running today wins", first_range("05.10. - 11.10. and 28.09. - 04.10.", TODAY), [date(2026, 9, 28), date(2026, 10, 4)])
+check("else the next one", first_range("01.09. - 07.09. then 05.10. - 11.10.", TODAY), [date(2026, 10, 5), date(2026, 10, 11)])
 check("first real date range", first_range("3.41.23-3.41.23 и после 28.09. - 04.10.", TODAY), [date(2026, 9, 28), date(2026, 10, 4)])
 check("no size, no unit price", unit_price(2.0, "опаковка"), None)
 
