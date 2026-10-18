@@ -22,6 +22,15 @@ check("a box too small is no box", crops.clean_box([0.1, 0.1, 0.11, 0.5]), None)
 check("anything else is no box", (crops.clean_box(None), crops.clean_box([1, 2]), crops.clean_box(["a", 1, 2, 3])), (None, None, None))
 check("file names are safe", crops.file_name("lidl:brochure:abc/1"), "lidl_brochure_abc_1.jpg")
 
+# Which picture goes to the shopping list with an offer.
+URL = "/mealie_planner/pictures"
+check("a cut-out picture is a file here", crops.picture_of({"image": URL + "/lidl_b_1.jpg?v=ab12", "page_image": "https://p/1.jpg", "source_id": "lidl:brochure:w"}, URL), ("file", "lidl_b_1.jpg"))
+check("a whole brochure page is no picture", crops.picture_of({"image": "https://p/1.jpg", "page_image": "https://p/1.jpg", "source_id": "lidl:brochure:w"}, URL), None)
+check("nor is a page filled in later", crops.picture_of({"image": "https://p/1.jpg", "source_id": "lidl:brochure:w"}, URL), None)
+check("a shop's picture is fetched", crops.picture_of({"image": "https://k/x.jpg", "source_id": "kaufland:web"}, URL), ("url", "https://k/x.jpg"))
+check("a link without its scheme is https", crops.picture_of({"image": "//k/x.jpg", "source_id": "kaufland:web"}, URL), ("url", "https://k/x.jpg"))
+check("no picture, none", (crops.picture_of({"source_id": "billa:web"}, URL), crops.picture_of({"image": URL + "/../x", "source_id": "lidl:web"}, URL)), (None, None))
+
 try:
     from PIL import Image
 except ImportError:
@@ -41,6 +50,10 @@ if Image is not None:
     check("and keeps the product's shape", round(width / height, 2), round(420 / 588, 2))
     check("and shows the product", centre[0] > 150 and centre[1] < 100, True)
     check("a broken page gives no picture", crops.crop(b"not an image", (0.1, 0.1, 0.5, 0.5)), None)
+    big = BytesIO()
+    Image.new("RGB", (1200, 900), (30, 30, 200)).save(big, "PNG")
+    with Image.open(BytesIO(crops.shrink(big.getvalue()))) as small:
+        check("a shop's picture is shrunk whole, as a JPEG", (small.format, small.size), ("JPEG", (480, 360)))
 
 
 # Reading a brochure: each offer keeps its page, and gets its cut-out picture.
