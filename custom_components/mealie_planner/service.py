@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from datetime import date, timedelta
 import hashlib
 import logging
@@ -60,7 +61,7 @@ from .offers import OfferBook, OfferIndex
 from .recipes import RecipeIndex
 from .sources import billa, brochures, kaufland, lidl
 from .sources import common as source_common
-from .sources.common import MAX_HEADER, SourceError, describe_page, fetch_each_profile
+from .sources.common import MAX_HEADER, SourceError, describe_page, fetch_bytes, fetch_each_profile
 from .text import iso
 
 _LOGGER = logging.getLogger(__name__)
@@ -740,6 +741,8 @@ class PlannerService:
         if api is None:
             raise PlannerError("HomeBasket Lists не е инсталиран.", "no_lists")
         entry_id = entry_id or self.lists_info().get("entry_id")
+        # Lists from API version 2 take a picture with the item.
+        photos = getattr(api, "api_version", 0) >= 2
         added = 0
         for item in items:
             offer = item.get("offer")
@@ -764,6 +767,8 @@ class PlannerService:
                 note = f"{note} · {recipes}" if note else recipes
             if note:
                 fields["note"] = note
+            if photos and offer and (photo := await self._photo(offer)):
+                fields["photo"] = photo
             result = await api.async_add_item(item["name"], entry_id=entry_id, **fields)
             if result is None:
                 raise PlannerError("Изберете списък в настройките на Mealie Planner.", "no_list")
@@ -773,6 +778,26 @@ class PlannerService:
             if no_shop and result.get("outcome") == "added":
                 await self._clear_guessed_store(result)
         return {"added": added}
+
+    async def _photo(self, offer: dict[str, Any]) -> str | None:
+        """The offer's picture as a small JPEG data URL, for the list; None without one."""
+        where = crops.picture_of(offer, PICTURES_URL)
+        if where is None:
+            return None
+        kind, value = where
+        try:
+            if kind == "file":
+                path = os.path.join(self._pictures_dir(), value)
+                data = await self.hass.async_add_executor_job(_read_file, path)
+            else:
+                data, _ = await fetch_bytes(self.shop_session, value, limit=8 * 1024 * 1024, timeout=20)
+        except (OSError, SourceError) as exc:
+            _LOGGER.debug("No picture for %s: %s", offer.get("name"), exc)
+            return None
+        picture = await self.hass.async_add_executor_job(crops.shrink, data)
+        if not picture:
+            return None
+        return "data:image/jpeg;base64," + base64.b64encode(picture).decode("ascii")
 
     async def _clear_guessed_store(self, result: dict[str, Any]) -> None:
         """HomeBasket Lists guesses a shop for items without one; "no shop" means none."""
@@ -815,6 +840,11 @@ class PlannerService:
         if not query:
             ranked.sort(key=lambda item: (-item["needed"], -item["score"], item["name"] or ""))
         return ranked[:60]
+
+
+def _read_file(path: str) -> bytes:
+    with open(path, "rb") as file:
+        return file.read()
 
 
 def _shop_session(hass: HomeAssistant):

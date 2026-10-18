@@ -187,6 +187,22 @@ async def main():
     check("added without a shop", "store" in lists.calls[0][2], False)
     check("and the guess Lists made is cleared", runtime.updates, [("u1", {"store": None})])
 
+    # Pictures: only to lists that take them, and only with an offer.
+    check("lists before version 2 get no picture", any("photo" in fields for _, _, fields in lists.calls), False)
+    asked = []
+
+    async def photo(offer):
+        asked.append(offer["name"])
+        return "data:image/jpeg;base64,AAAA"
+
+    service._photo = photo
+    lists.api_version = 2
+    lists.calls.clear()
+    await service.async_add_to_list([basket["сьомга"], lemons])
+    calls = {summary: fields for summary, _, fields in lists.calls}
+    check("the offer's picture goes with it", calls["сьомга"].get("photo"), "data:image/jpeg;base64,AAAA")
+    check("nothing on offer, no picture", ("photo" in calls["лимони"], asked), (False, ["Сьомга филе"]))
+
 
 async def without_homebasket():
     """Planning, products and offers work with neither HomeBasket nor its lists."""

@@ -216,6 +216,10 @@ is yours.
     HomeBasket Lists fills one in from what HomeBasket knows of the product,
     as it does for anything added without a shop.
   - Choosing **No shop** on a product by hand always leaves it without one.
+- A product on offer goes to the list with the offer's picture: the one cut
+  out of the brochure, or the shop's own. This needs HomeBasket Lists 0.15.0
+  or later. A whole brochure page is never sent, and an item that already has
+  a photo keeps it.
 - Tapping a product shows:
   - its offer: price, old price, price per kg, dates, conditions and brochure
     page;
